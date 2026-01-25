@@ -1935,63 +1935,69 @@
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
 
-            // Game Over text
-            ctx.fillStyle = CONFIG.COLORS.HEALTH;
-            ctx.font = 'bold 24px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('GAME OVER', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 - 40);
-
-            // Final score
-            ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
-            ctx.font = 'bold 14px monospace';
-            ctx.fillText('FINAL SCORE: ' + game.score, CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 - 10);
 
             if (game.enteringName) {
+                // Compact layout to fit keyboard in viewport
+                // GAME OVER text
+                ctx.fillStyle = CONFIG.COLORS.HEALTH;
+                ctx.font = 'bold 18px monospace';
+                ctx.fillText('GAME OVER', CONFIG.BASE_WIDTH / 2, 22);
+
+                // Final score
+                ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('SCORE: ' + game.score, CONFIG.BASE_WIDTH / 2, 40);
+
                 // New high score!
                 ctx.fillStyle = CONFIG.COLORS.SLASH;
-                ctx.font = 'bold 12px monospace';
-                ctx.fillText('NEW HIGH SCORE!', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 15);
+                ctx.font = 'bold 10px monospace';
+                ctx.fillText('NEW HIGH SCORE!', CONFIG.BASE_WIDTH / 2, 56);
 
-                // Name entry
-                ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
-                ctx.font = 'bold 16px monospace';
+                // Name entry boxes
+                ctx.font = 'bold 14px monospace';
                 const displayName = game.playerName.padEnd(3, '_');
-
-                // Draw each letter with pixelated box
-                const startX = CONFIG.BASE_WIDTH / 2 - 36;
+                const startX = CONFIG.BASE_WIDTH / 2 - 30;
                 for (let i = 0; i < 3; i++) {
-                    const letterX = startX + i * 24;
+                    const letterX = startX + i * 20;
 
                     // Box background
                     ctx.fillStyle = i < game.playerName.length ? '#5c6bc0' : '#333';
-                    ctx.fillRect(letterX, CONFIG.BASE_HEIGHT / 2 + 25, 20, 24);
+                    ctx.fillRect(letterX, 65, 18, 20);
 
                     // Letter
                     ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
-                    ctx.fillText(displayName[i], letterX + 10, CONFIG.BASE_HEIGHT / 2 + 43);
+                    ctx.fillText(displayName[i], letterX + 9, 80);
                 }
 
-                // Draw on-screen keyboard for touch devices
+                // Draw on-screen keyboard
                 drawTouchKeyboard();
 
-                ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
-                ctx.font = '8px monospace';
-                ctx.fillText('Tap letters or type', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 58);
             } else {
+                // Standard game over (no high score)
+                ctx.fillStyle = CONFIG.COLORS.HEALTH;
+                ctx.font = 'bold 24px monospace';
+                ctx.fillText('GAME OVER', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 - 20);
+
+                // Final score
+                ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+                ctx.font = 'bold 14px monospace';
+                ctx.fillText('FINAL SCORE: ' + game.score, CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 10);
+
                 // Restart prompt
                 ctx.font = '10px monospace';
-                ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 25);
+                ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 35);
             }
         }
 
         // ==================== TOUCH KEYBOARD ====================
         function drawTouchKeyboard() {
             const ctx = game.ctx;
-            const btnSize = 22;
+            const btnSize = 20;
             const gap = 2;
             const cols = 9;
             const startX = (CONFIG.BASE_WIDTH - (cols * (btnSize + gap))) / 2;
-            const startY = CONFIG.BASE_HEIGHT / 2 + 65;
+            const startY = 92; // Fixed position below name entry
 
             // Store keyboard position for hit detection
             touchKeyboard.startX = startX;
@@ -2015,33 +2021,40 @@
 
                 // Letter
                 ctx.fillStyle = '#fff';
-                ctx.font = 'bold 12px monospace';
+                ctx.font = 'bold 10px monospace';
                 ctx.textAlign = 'center';
                 ctx.fillText(touchKeyboard.letters[i], x + btnSize/2, y + btnSize/2 + 4);
             }
 
+            // Bottom row: DEL and OK buttons
+            const bottomY = startY + 3 * (btnSize + gap);
+
             // Backspace button
-            const bsX = startX + 0 * (btnSize + gap);
-            const bsY = startY + 3 * (btnSize + gap);
+            const bsX = startX;
             ctx.fillStyle = '#833';
-            ctx.fillRect(bsX, bsY, btnSize * 2, btnSize);
+            ctx.fillRect(bsX, bottomY, btnSize * 2 + gap, btnSize);
             ctx.fillStyle = '#a55';
-            ctx.fillRect(bsX, bsY, btnSize * 2, 2);
+            ctx.fillRect(bsX, bottomY, btnSize * 2 + gap, 2);
             ctx.fillStyle = '#fff';
-            ctx.fillText('DEL', bsX + btnSize, bsY + btnSize/2 + 4);
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText('DEL', bsX + (btnSize * 2 + gap) / 2, bottomY + btnSize/2 + 4);
 
             // OK button (only if 3 letters entered)
-            const okX = startX + 5 * (btnSize + gap);
-            const okY = startY + 3 * (btnSize + gap);
+            const okX = startX + 6 * (btnSize + gap);
             const okEnabled = game.playerName.length === 3;
             ctx.fillStyle = okEnabled ? '#383' : '#333';
-            ctx.fillRect(okX, okY, btnSize * 3 + gap * 2, btnSize);
+            ctx.fillRect(okX, bottomY, btnSize * 3, btnSize);
             if (okEnabled) {
                 ctx.fillStyle = '#5a5';
-                ctx.fillRect(okX, okY, btnSize * 3 + gap * 2, 2);
+                ctx.fillRect(okX, bottomY, btnSize * 3, 2);
             }
             ctx.fillStyle = okEnabled ? '#fff' : '#666';
-            ctx.fillText('OK', okX + (btnSize * 3 + gap * 2) / 2, okY + btnSize/2 + 4);
+            ctx.fillText('OK', okX + (btnSize * 3) / 2, bottomY + btnSize/2 + 4);
+
+            // Hint text
+            ctx.fillStyle = '#888';
+            ctx.font = '8px monospace';
+            ctx.fillText('Tap or type letters', CONFIG.BASE_WIDTH / 2, bottomY + btnSize + 12);
 
             ctx.textAlign = 'left';
         }
@@ -2056,7 +2069,7 @@
             const startX = kb.startX;
             const startY = kb.startY;
 
-            // Check letter buttons
+            // Check letter buttons (3 rows of 9)
             for (let i = 0; i < 26; i++) {
                 const row = Math.floor(i / cols);
                 const col = i % cols;
@@ -2072,11 +2085,12 @@
                 }
             }
 
-            // Check backspace
-            const bsX = startX + 0 * (btnSize + gap);
-            const bsY = startY + 3 * (btnSize + gap);
-            if (canvasX >= bsX && canvasX < bsX + btnSize * 2 &&
-                canvasY >= bsY && canvasY < bsY + btnSize) {
+            const bottomY = startY + 3 * (btnSize + gap);
+
+            // Check backspace (DEL)
+            const bsX = startX;
+            if (canvasX >= bsX && canvasX < bsX + btnSize * 2 + gap &&
+                canvasY >= bottomY && canvasY < bottomY + btnSize) {
                 if (game.playerName.length > 0) {
                     game.playerName = game.playerName.slice(0, -1);
                 }
@@ -2084,10 +2098,9 @@
             }
 
             // Check OK button
-            const okX = startX + 5 * (btnSize + gap);
-            const okY = startY + 3 * (btnSize + gap);
-            if (canvasX >= okX && canvasX < okX + btnSize * 3 + gap * 2 &&
-                canvasY >= okY && canvasY < okY + btnSize) {
+            const okX = startX + 6 * (btnSize + gap);
+            if (canvasX >= okX && canvasX < okX + btnSize * 3 &&
+                canvasY >= bottomY && canvasY < bottomY + btnSize) {
                 if (game.playerName.length === 3) {
                     addHighScore(game.playerName, game.score, game.newHighScoreRank);
                     game.enteringName = false;
