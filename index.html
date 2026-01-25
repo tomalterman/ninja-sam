@@ -248,6 +248,18 @@
             { name: '---', score: 0 }
         ];
 
+        // Remember last player name for the session
+        let lastPlayerName = sessionStorage.getItem('ninjaSamLastName') || '';
+
+        // Touch keyboard state
+        const touchKeyboard = {
+            letters: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+            backspace: '←',
+            enter: 'OK',
+            buttonSize: 28,
+            startY: 0  // Will be calculated based on canvas
+        };
+
         function loadHighScores() {
             const saved = localStorage.getItem('ninjaSamHighScores');
             if (saved) {
@@ -278,6 +290,10 @@
         }
 
         function addHighScore(name, score, rank) {
+            // Save name for future sessions
+            lastPlayerName = name.toUpperCase();
+            sessionStorage.setItem('ninjaSamLastName', lastPlayerName);
+
             // Insert new score at rank
             highScores.splice(rank, 0, { name: name.toUpperCase(), score: score });
             // Keep only top 3
@@ -503,12 +519,40 @@
             });
             slashBtn.addEventListener('touchend', () => { game.keys.slash = false; game.keys.slashUsed = false; });
 
-            // Click to restart when game over (but not during name entry)
-            game.canvas.addEventListener('click', () => {
-                if (game.gameOver && !game.enteringName) {
-                    resetGame();
+            // Click/touch handler for game over screen and keyboard
+            function handleCanvasInteraction(e) {
+                e.preventDefault();
+
+                // Get canvas coordinates
+                const rect = game.canvas.getBoundingClientRect();
+                const scaleX = CONFIG.BASE_WIDTH / rect.width;
+                const scaleY = CONFIG.BASE_HEIGHT / rect.height;
+
+                let clientX, clientY;
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
                 }
-            });
+
+                const canvasX = (clientX - rect.left) * scaleX;
+                const canvasY = (clientY - rect.top) * scaleY;
+
+                if (game.gameOver) {
+                    if (game.enteringName) {
+                        // Handle keyboard touch
+                        handleKeyboardTouch(canvasX, canvasY);
+                    } else {
+                        // Restart game
+                        resetGame();
+                    }
+                }
+            }
+
+            game.canvas.addEventListener('click', handleCanvasInteraction);
+            game.canvas.addEventListener('touchstart', handleCanvasInteraction);
         }
 
         // ==================== GAME LOOP ====================
@@ -575,7 +619,7 @@
                     game.newHighScoreRank = checkHighScore(game.score);
                     if (game.newHighScoreRank >= 0) {
                         game.enteringName = true;
-                        game.playerName = '';
+                        game.playerName = lastPlayerName; // Prefill with last used name
                     }
                 }
                 return; // Skip all other ninja updates during death
@@ -1908,13 +1952,131 @@
                     ctx.fillText(displayName[i], letterX + 10, CONFIG.BASE_HEIGHT / 2 + 43);
                 }
 
-                ctx.font = '10px monospace';
-                ctx.fillText('Type 3 letters, press ENTER', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 70);
+                // Draw on-screen keyboard for touch devices
+                drawTouchKeyboard();
+
+                ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+                ctx.font = '8px monospace';
+                ctx.fillText('Tap letters or type', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 58);
             } else {
                 // Restart prompt
                 ctx.font = '10px monospace';
                 ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 25);
             }
+        }
+
+        // ==================== TOUCH KEYBOARD ====================
+        function drawTouchKeyboard() {
+            const ctx = game.ctx;
+            const btnSize = 22;
+            const gap = 2;
+            const cols = 9;
+            const startX = (CONFIG.BASE_WIDTH - (cols * (btnSize + gap))) / 2;
+            const startY = CONFIG.BASE_HEIGHT / 2 + 65;
+
+            // Store keyboard position for hit detection
+            touchKeyboard.startX = startX;
+            touchKeyboard.startY = startY;
+            touchKeyboard.btnSize = btnSize;
+            touchKeyboard.gap = gap;
+            touchKeyboard.cols = cols;
+
+            // Draw letter buttons (3 rows)
+            for (let i = 0; i < 26; i++) {
+                const row = Math.floor(i / cols);
+                const col = i % cols;
+                const x = startX + col * (btnSize + gap);
+                const y = startY + row * (btnSize + gap);
+
+                // Button background
+                ctx.fillStyle = '#444';
+                ctx.fillRect(x, y, btnSize, btnSize);
+                ctx.fillStyle = '#666';
+                ctx.fillRect(x, y, btnSize, 2);
+
+                // Letter
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(touchKeyboard.letters[i], x + btnSize/2, y + btnSize/2 + 4);
+            }
+
+            // Backspace button
+            const bsX = startX + 0 * (btnSize + gap);
+            const bsY = startY + 3 * (btnSize + gap);
+            ctx.fillStyle = '#833';
+            ctx.fillRect(bsX, bsY, btnSize * 2, btnSize);
+            ctx.fillStyle = '#a55';
+            ctx.fillRect(bsX, bsY, btnSize * 2, 2);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('DEL', bsX + btnSize, bsY + btnSize/2 + 4);
+
+            // OK button (only if 3 letters entered)
+            const okX = startX + 5 * (btnSize + gap);
+            const okY = startY + 3 * (btnSize + gap);
+            const okEnabled = game.playerName.length === 3;
+            ctx.fillStyle = okEnabled ? '#383' : '#333';
+            ctx.fillRect(okX, okY, btnSize * 3 + gap * 2, btnSize);
+            if (okEnabled) {
+                ctx.fillStyle = '#5a5';
+                ctx.fillRect(okX, okY, btnSize * 3 + gap * 2, 2);
+            }
+            ctx.fillStyle = okEnabled ? '#fff' : '#666';
+            ctx.fillText('OK', okX + (btnSize * 3 + gap * 2) / 2, okY + btnSize/2 + 4);
+
+            ctx.textAlign = 'left';
+        }
+
+        function handleKeyboardTouch(canvasX, canvasY) {
+            if (!game.enteringName) return false;
+
+            const kb = touchKeyboard;
+            const btnSize = kb.btnSize;
+            const gap = kb.gap;
+            const cols = kb.cols;
+            const startX = kb.startX;
+            const startY = kb.startY;
+
+            // Check letter buttons
+            for (let i = 0; i < 26; i++) {
+                const row = Math.floor(i / cols);
+                const col = i % cols;
+                const x = startX + col * (btnSize + gap);
+                const y = startY + row * (btnSize + gap);
+
+                if (canvasX >= x && canvasX < x + btnSize &&
+                    canvasY >= y && canvasY < y + btnSize) {
+                    if (game.playerName.length < 3) {
+                        game.playerName += kb.letters[i];
+                    }
+                    return true;
+                }
+            }
+
+            // Check backspace
+            const bsX = startX + 0 * (btnSize + gap);
+            const bsY = startY + 3 * (btnSize + gap);
+            if (canvasX >= bsX && canvasX < bsX + btnSize * 2 &&
+                canvasY >= bsY && canvasY < bsY + btnSize) {
+                if (game.playerName.length > 0) {
+                    game.playerName = game.playerName.slice(0, -1);
+                }
+                return true;
+            }
+
+            // Check OK button
+            const okX = startX + 5 * (btnSize + gap);
+            const okY = startY + 3 * (btnSize + gap);
+            if (canvasX >= okX && canvasX < okX + btnSize * 3 + gap * 2 &&
+                canvasY >= okY && canvasY < okY + btnSize) {
+                if (game.playerName.length === 3) {
+                    addHighScore(game.playerName, game.score, game.newHighScoreRank);
+                    game.enteringName = false;
+                }
+                return true;
+            }
+
+            return false;
         }
 
         // ==================== START GAME ====================
