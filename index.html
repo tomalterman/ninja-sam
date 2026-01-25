@@ -15,11 +15,13 @@
             background: #1a1a2e;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
+            padding: 10px;
             font-family: 'Courier New', monospace;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         #gameContainer {
@@ -72,6 +74,20 @@
             #touchControls {
                 display: flex;
             }
+            #instructions {
+                display: none;
+            }
+        }
+
+        @media (max-height: 700px) {
+            #highScores h2 {
+                font-size: 14px;
+                margin-bottom: 5px;
+            }
+            .scoreEntry {
+                font-size: 12px;
+                margin: 2px 0;
+            }
         }
 
         #instructions {
@@ -92,7 +108,7 @@
         #highScores {
             color: #fff;
             text-align: center;
-            margin-bottom: 15px;
+            margin-top: 15px;
             font-family: 'Courier New', monospace;
         }
 
@@ -141,14 +157,6 @@
     </style>
 </head>
 <body>
-    <div id="highScores">
-        <h2>HIGH SCORES</h2>
-        <div id="scoreList">
-            <div class="scoreEntry"><span class="rank">1.</span> <span class="name">---</span> <span class="score">000000</span></div>
-            <div class="scoreEntry"><span class="rank">2.</span> <span class="name">---</span> <span class="score">000000</span></div>
-            <div class="scoreEntry"><span class="rank">3.</span> <span class="name">---</span> <span class="score">000000</span></div>
-        </div>
-    </div>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div id="touchControls">
@@ -159,6 +167,14 @@
     <div id="instructions">
         <p><strong>JUMP:</strong> Space, W, or Arrow Up</p>
         <p><strong>SLASH:</strong> S, D, or Shift</p>
+    </div>
+    <div id="highScores">
+        <h2>HIGH SCORES</h2>
+        <div id="scoreList">
+            <div class="scoreEntry"><span class="rank">1.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">2.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">3.</span> <span class="name">---</span> <span class="score">000000</span></div>
+        </div>
     </div>
 
     <script>
@@ -401,14 +417,17 @@
         function resizeCanvas() {
             const container = document.getElementById('gameContainer');
             const maxWidth = window.innerWidth - 20;
-            const maxHeight = window.innerHeight - 20;
+            // Reserve space for instructions and high scores
+            const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+            const reservedHeight = isTouchDevice ? 120 : 180;
+            const maxHeight = window.innerHeight - reservedHeight;
 
             let scale = Math.min(
                 maxWidth / CONFIG.BASE_WIDTH,
                 maxHeight / CONFIG.BASE_HEIGHT
             );
 
-            // Round down to nearest integer for crisp pixels
+            // Round down to nearest integer for crisp pixels (min 1)
             scale = Math.max(1, Math.floor(scale));
 
             game.canvas.style.width = (CONFIG.BASE_WIDTH * scale) + 'px';
