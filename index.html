@@ -359,11 +359,10 @@
 
         // ==================== PARALLAX BACKGROUND ====================
         const background = {
-            stars: Array.from({length: 50}, () => ({
+            stars: Array.from({length: 20}, () => ({
                 x: Math.random() * CONFIG.BASE_WIDTH,
                 y: Math.random() * 80,
-                size: Math.random() < 0.3 ? 2 : 1,
-                twinkle: Math.random() * Math.PI * 2
+                size: Math.random() < 0.3 ? 2 : 1
             })),
             clouds: [
                 { x: 50, y: 30, width: 60 },
@@ -912,7 +911,7 @@
 
         function destroyRobot(robot, index, squashed = false) {
             // Create explosion particles
-            const particleCount = squashed ? 8 : 12;
+            const particleCount = squashed ? 5 : 8;
             for (let i = 0; i < particleCount; i++) {
                 particles.push({
                     x: robot.x,
@@ -930,7 +929,7 @@
 
         function destroyFruit(fruit, index) {
             // Create colorful fruit explosion particles
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < 6; i++) {
                 const bobY = Math.sin(fruit.bobTimer + fruit.bobOffset) * 5;
                 particles.push({
                     x: fruit.x,
@@ -953,7 +952,7 @@
             game.combo = 1;
 
             // Screen shake effect (simple version - just particles)
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 5; i++) {
                 particles.push({
                     x: ninja.x,
                     y: ninja.y - ninja.height / 2,
@@ -1117,10 +1116,9 @@
             const ctx = game.ctx;
             const time = Date.now() / 1000;
 
-            // Stars (twinkling)
+            // Stars (static for performance)
+            ctx.fillStyle = '#ffffff';
             for (const star of background.stars) {
-                const twinkle = Math.sin(time * 2 + star.twinkle) * 0.3 + 0.7;
-                ctx.fillStyle = `rgba(255, 255, 255, ${twinkle})`;
                 ctx.fillRect(star.x, star.y, star.size, star.size);
             }
 
@@ -1141,10 +1139,11 @@
             ctx.arc(318, 48, 2, 0, Math.PI * 2);
             ctx.fill();
 
-            // Clouds (dark purple, slow moving)
-            ctx.fillStyle = 'rgba(50, 30, 80, 0.6)';
+            // Clouds (simple rectangles for performance)
+            ctx.fillStyle = 'rgba(50, 30, 80, 0.5)';
             for (const c of background.clouds) {
-                drawCloud(c.x, c.y, c.width);
+                ctx.fillRect(c.x, c.y, c.width, 12);
+                ctx.fillRect(c.x + 10, c.y - 5, c.width - 20, 8);
             }
 
             // Mountains with snow caps
@@ -1195,54 +1194,27 @@
                 ctx.fillStyle = '#333';
                 ctx.fillRect(b.x, CONFIG.GROUND_Y - b.height, b.width, 3);
 
-                // Windows with variety
+                // Windows (simplified for performance)
                 const windowSize = 4;
-                const windowGap = 8;
+                const windowGap = 10;
                 for (let wy = CONFIG.GROUND_Y - b.height + 10; wy < CONFIG.GROUND_Y - 10; wy += windowGap) {
                     for (let wx = b.x + 6; wx < b.x + b.width - 6; wx += windowGap) {
-                        // Some windows lit, some dark
-                        const isLit = ((wx * 7 + wy * 13) % 10) > 3;
-                        if (isLit) {
-                            ctx.fillStyle = '#ffd700';
-                            ctx.fillRect(wx, wy, windowSize, windowSize);
-                            // Window glow
-                            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
-                            ctx.fillRect(wx - 1, wy - 1, windowSize + 2, windowSize + 2);
-                        } else {
-                            ctx.fillStyle = '#1a1a4e';
-                            ctx.fillRect(wx, wy, windowSize, windowSize);
-                        }
+                        const isLit = ((wx * 7 + wy * 13) % 10) > 4;
+                        ctx.fillStyle = isLit ? '#ffd700' : '#1a1a4e';
+                        ctx.fillRect(wx, wy, windowSize, windowSize);
                     }
                 }
 
-                // Neon signs on some buildings
+                // Neon signs on some buildings (simplified)
                 if (b.hasSign && b.height > 70) {
                     const signY = CONFIG.GROUND_Y - b.height + 20;
                     const signColor = ['#ff00ff', '#00ffff', '#ff6600'][Math.floor(b.x / 100) % 3];
-                    const glow = Math.sin(time * 3 + b.x) * 0.2 + 0.8;
-
                     ctx.fillStyle = signColor;
-                    ctx.globalAlpha = glow;
                     ctx.fillRect(b.x + 8, signY, b.width - 16, 6);
-                    // Sign glow
-                    ctx.fillStyle = signColor;
-                    ctx.globalAlpha = glow * 0.3;
-                    ctx.fillRect(b.x + 6, signY - 2, b.width - 12, 10);
-                    ctx.globalAlpha = 1;
                 }
             }
         }
 
-        function drawCloud(x, y, width) {
-            const ctx = game.ctx;
-            // Fluffy cloud shape
-            ctx.beginPath();
-            ctx.arc(x, y + 10, width * 0.3, 0, Math.PI * 2);
-            ctx.arc(x + width * 0.3, y + 5, width * 0.35, 0, Math.PI * 2);
-            ctx.arc(x + width * 0.6, y + 8, width * 0.3, 0, Math.PI * 2);
-            ctx.arc(x + width * 0.4, y + 12, width * 0.25, 0, Math.PI * 2);
-            ctx.fill();
-        }
 
         function drawGround() {
             const ctx = game.ctx;
@@ -1557,31 +1529,18 @@
             ctx.lineTo(swordLength - 2, 4);
             ctx.fill();
 
-            // === FLAMES ALONG THE BLADE ===
-            for (let i = 0; i < 6; i++) {
-                const flameX = 16 + i * 4;
-                const flicker = Math.sin(flameTimer * 3 + i * 0.8) * 2;
-                const flicker2 = Math.cos(flameTimer * 2.5 + i * 1.2) * 1.5;
-                const flameSize = 3 + Math.sin(flameTimer * 4 + i) * 1;
-
-                // Outer flame (red/orange)
+            // === FLAMES ALONG THE BLADE (simplified) ===
+            const flicker = ((Date.now() / 50) % 4) - 2; // Simple flicker without sin
+            for (let i = 0; i < 4; i++) {
+                const flameX = 18 + i * 5;
                 ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
-                ctx.fillRect(flameX, -5 - flicker, flameSize, flameSize);
-                ctx.fillRect(flameX + 1, 4 + flicker2, flameSize - 1, flameSize - 1);
-
-                // Mid flame (orange)
+                ctx.fillRect(flameX, -4 + (i % 2) * flicker, 3, 3);
                 ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
-                ctx.fillRect(flameX + 1, -4 - flicker * 0.7, flameSize - 1, flameSize - 1);
-                ctx.fillRect(flameX, 3 + flicker2 * 0.7, flameSize - 1, flameSize - 1);
-
-                // Inner flame (yellow)
-                ctx.fillStyle = CONFIG.COLORS.FLAME_MID;
-                ctx.fillRect(flameX + 1, -3 - flicker * 0.4, 2, 2);
-                ctx.fillRect(flameX + 1, 2 + flicker2 * 0.4, 2, 2);
+                ctx.fillRect(flameX, 3 - (i % 2) * flicker, 3, 3);
             }
 
-            // Tip flames (larger)
-            const tipFlicker = Math.sin(flameTimer * 4) * 3;
+            // Tip flame
+            const tipFlicker = ((Date.now() / 40) % 4) - 2;
             ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
             ctx.fillRect(swordLength, -4 - tipFlicker, 5, 5);
             ctx.fillRect(swordLength + 2, 2 + tipFlicker * 0.5, 4, 4);
@@ -1592,14 +1551,13 @@
 
             ctx.restore();
 
-            // === SLASH TRAIL (fire arc following sword path) ===
-            if (ninja.isSlashing && slashProgress > 0.1) {
+            // === SLASH TRAIL (simplified for performance) ===
+            if (ninja.isSlashing && slashProgress > 0.2) {
                 ctx.save();
 
-                // Draw multiple trail segments for smooth arc
-                const trailSegments = 10;
-                for (let i = 0; i < trailSegments; i++) {
-                    const segmentProgress = slashProgress - (i * 0.06);
+                // Fewer trail segments for mobile performance
+                for (let i = 0; i < 5; i++) {
+                    const segmentProgress = slashProgress - (i * 0.12);
                     if (segmentProgress < 0) continue;
 
                     const segmentEased = 1 - (1 - segmentProgress) * (1 - segmentProgress);
@@ -1608,17 +1566,11 @@
                     const trailX = swordPivotX + Math.cos(trailAngle) * (swordLength + 4);
                     const trailY = swordPivotY + Math.sin(trailAngle) * (swordLength + 4);
 
-                    const alpha = (1 - i / trailSegments) * 0.7 * (1 - slashProgress * 0.3);
-                    const size = 8 + (trailSegments - i) * 1.2;
+                    const size = 6 + (5 - i) * 2;
 
-                    // Fire trail
-                    ctx.globalAlpha = alpha;
-                    ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
-                    ctx.fillRect(trailX - size/2, trailY - size/2, size, size);
+                    ctx.globalAlpha = (1 - i / 5) * 0.6;
                     ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
-                    ctx.fillRect(trailX - size/3, trailY - size/3, size * 0.7, size * 0.7);
-                    ctx.fillStyle = CONFIG.COLORS.FLAME_MID;
-                    ctx.fillRect(trailX - size/4, trailY - size/4, size * 0.5, size * 0.5);
+                    ctx.fillRect(trailX - size/2, trailY - size/2, size, size);
                 }
 
                 ctx.globalAlpha = 1;
@@ -1637,7 +1589,6 @@
             ctx.save();
 
             const bobY = Math.sin(robot.animFrame * Math.PI / 2) * 2;
-            const glowTimer = Date.now() / 100;
 
             if (isTall) {
                 // === TALL MECH ROBOT ===
@@ -1666,13 +1617,11 @@
                 ctx.fillStyle = '#333';
                 ctx.fillRect(x - 8, y - 28 + bobY, 16, 2);
                 ctx.fillRect(x - 6, y - 16 + bobY, 12, 2);
-                // Chest core (glowing)
+                // Chest core
                 ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
                 ctx.fillRect(x - 4, y - 24 + bobY, 8, 6);
                 ctx.fillStyle = '#ffff00';
-                ctx.globalAlpha = 0.5 + Math.sin(glowTimer) * 0.3;
                 ctx.fillRect(x - 2, y - 22 + bobY, 4, 2);
-                ctx.globalAlpha = 1;
 
                 // Head
                 ctx.fillStyle = '#666';
@@ -1682,27 +1631,19 @@
                 // Visor
                 ctx.fillStyle = '#222';
                 ctx.fillRect(x - 7, y - 37 + bobY, 14, 4);
-                // Eyes (glowing)
+                // Eyes
                 ctx.fillStyle = CONFIG.COLORS.ROBOT_EYES;
                 ctx.fillRect(x - 5, y - 36 + bobY, 4, 2);
                 ctx.fillRect(x + 1, y - 36 + bobY, 4, 2);
-                // Eye glow
-                ctx.fillStyle = '#ff0000';
-                ctx.globalAlpha = 0.6 + Math.sin(glowTimer * 2) * 0.3;
-                ctx.fillRect(x - 4, y - 36 + bobY, 2, 2);
-                ctx.fillRect(x + 2, y - 36 + bobY, 2, 2);
-                ctx.globalAlpha = 1;
 
                 // Antenna
                 ctx.fillStyle = '#888';
                 ctx.fillRect(x - 1, y - 46 + bobY, 2, 6);
                 ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
                 ctx.fillRect(x - 2, y - 48 + bobY, 4, 3);
-                // Antenna light blinking
-                ctx.fillStyle = '#ff0000';
-                ctx.globalAlpha = Math.sin(glowTimer * 3) > 0 ? 1 : 0.3;
+                // Antenna light
+                ctx.fillStyle = ((Date.now() / 300) % 2) > 1 ? '#ff0000' : '#660000';
                 ctx.fillRect(x - 1, y - 47 + bobY, 2, 2);
-                ctx.globalAlpha = 1;
 
                 // Arms
                 ctx.fillStyle = '#555';
@@ -1739,9 +1680,7 @@
                 ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
                 ctx.fillRect(x - 3, y - 16 + bobY, 6, 4);
                 ctx.fillStyle = '#ffff00';
-                ctx.globalAlpha = 0.5 + Math.sin(glowTimer) * 0.3;
                 ctx.fillRect(x - 1, y - 14 + bobY, 2, 2);
-                ctx.globalAlpha = 1;
 
                 // Head
                 ctx.fillStyle = '#666';
