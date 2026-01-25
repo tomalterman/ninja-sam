@@ -14,6 +14,7 @@
         body {
             background: #1a1a2e;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -72,15 +73,92 @@
                 display: flex;
             }
         }
+
+        #instructions {
+            color: #aaa;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        #instructions p {
+            margin: 5px 0;
+        }
+
+        #instructions strong {
+            color: #ffd700;
+        }
+
+        #highScores {
+            color: #fff;
+            text-align: center;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+        }
+
+        #highScores h2 {
+            color: #ffd700;
+            font-size: 18px;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+        }
+
+        .scoreEntry {
+            font-size: 14px;
+            margin: 4px 0;
+            transition: all 0.3s;
+        }
+
+        .scoreEntry.new {
+            animation: newScore 0.5s ease-out;
+            color: #ffd700;
+        }
+
+        .scoreEntry .rank {
+            color: #ff4757;
+        }
+
+        .scoreEntry .name {
+            color: #5c6bc0;
+            margin: 0 10px;
+        }
+
+        .scoreEntry .score {
+            color: #fff;
+        }
+
+        @keyframes newScore {
+            0% { transform: scale(2); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes pixelate {
+            0% { filter: blur(4px); transform: scale(1.5); opacity: 0; }
+            30% { filter: blur(2px); }
+            100% { filter: blur(0); transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body>
+    <div id="highScores">
+        <h2>HIGH SCORES</h2>
+        <div id="scoreList">
+            <div class="scoreEntry"><span class="rank">1.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">2.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">3.</span> <span class="name">---</span> <span class="score">000000</span></div>
+        </div>
+    </div>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div id="touchControls">
             <div class="touchBtn" id="jumpBtn">JUMP</div>
             <div class="touchBtn" id="slashBtn">SLASH</div>
         </div>
+    </div>
+    <div id="instructions">
+        <p><strong>JUMP:</strong> Space, W, or Arrow Up</p>
+        <p><strong>SLASH:</strong> S, D, or Shift</p>
     </div>
 
     <script>
@@ -92,18 +170,19 @@
             SCALE: 3,
 
             // Physics
-            GRAVITY: 0.8,
-            JUMP_FORCE: -14,
+            GRAVITY: 0.5,
+            JUMP_FORCE: -10,
+            FLOAT_GRAVITY: 0.15,  // Reduced gravity at peak for hang time
             GROUND_Y: 170,
 
             // Game speed
-            SCROLL_SPEED: 4,
-            ROBOT_SPEED: 3,
+            SCROLL_SPEED: 1,
+            ROBOT_SPEED: 0.8,
 
             // Timing (in frames at 60fps)
             JUMP_DURATION: 36,      // ~0.6 seconds
             SLASH_DURATION: 18,     // ~0.3 seconds
-            SLASH_COOLDOWN: 12,     // ~0.2 seconds
+            SLASH_COOLDOWN: 36,     // ~0.6 seconds
             INVINCIBILITY: 90,      // ~1.5 seconds
 
             // Spawning
@@ -117,12 +196,18 @@
                 BUILDINGS: '#0f3460',
                 GROUND: '#533483',
                 GROUND_TOP: '#7952a3',
-                NINJA: '#2d3a8c',
-                NINJA_ACCENT: '#5c6bc0',
+                NINJA: '#1a1a1a',
+                NINJA_ACCENT: '#333333',
                 NINJA_SKIN: '#ffccaa',
-                ROBOT_BODY: '#607d8b',
-                ROBOT_ACCENT: '#ff5722',
-                ROBOT_EYES: '#f44336',
+                NINJA_HAIR: '#f4d03f',
+                NINJA_HAIR_DARK: '#c9a227',
+                FLAME_INNER: '#ffffff',
+                FLAME_MID: '#ffff00',
+                FLAME_OUTER: '#ff6600',
+                FLAME_TIP: '#ff0000',
+                ROBOT_BODY: '#ff4444',
+                ROBOT_ACCENT: '#ffff00',
+                ROBOT_EYES: '#ffffff',
                 SLASH: '#ffd700',
                 UI_TEXT: '#ffffff',
                 HEALTH: '#ff4757'
@@ -143,12 +228,68 @@
             nextSpawnTime: 100,
             difficulty: 1,
 
+            // High score entry
+            enteringName: false,
+            playerName: '',
+            newHighScoreRank: -1,
+
             // Input state
             keys: {
                 jump: false,
-                slash: false
+                slash: false,
+                slashUsed: false  // Prevents holding key to spam
             }
         };
+
+        // ==================== HIGH SCORES ====================
+        let highScores = [
+            { name: '---', score: 0 },
+            { name: '---', score: 0 },
+            { name: '---', score: 0 }
+        ];
+
+        function loadHighScores() {
+            const saved = localStorage.getItem('ninjaSamHighScores');
+            if (saved) {
+                highScores = JSON.parse(saved);
+            }
+            updateHighScoreDisplay();
+        }
+
+        function saveHighScores() {
+            localStorage.setItem('ninjaSamHighScores', JSON.stringify(highScores));
+        }
+
+        function updateHighScoreDisplay() {
+            const entries = document.querySelectorAll('.scoreEntry');
+            entries.forEach((entry, i) => {
+                entry.querySelector('.name').textContent = highScores[i].name;
+                entry.querySelector('.score').textContent = String(highScores[i].score).padStart(6, '0');
+            });
+        }
+
+        function checkHighScore(score) {
+            for (let i = 0; i < 3; i++) {
+                if (score > highScores[i].score) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        function addHighScore(name, score, rank) {
+            // Insert new score at rank
+            highScores.splice(rank, 0, { name: name.toUpperCase(), score: score });
+            // Keep only top 3
+            highScores = highScores.slice(0, 3);
+            saveHighScores();
+
+            // Animate the new entry
+            updateHighScoreDisplay();
+            const entries = document.querySelectorAll('.scoreEntry');
+            entries[rank].classList.add('new');
+            setTimeout(() => entries[rank].classList.remove('new'), 1000);
+        }
 
         // ==================== NINJA PLAYER ====================
         const ninja = {
@@ -163,16 +304,41 @@
             slashCooldown: 0,
             invincible: 0,
             animFrame: 0,
-            animTimer: 0
+            animTimer: 0,
+            hitReaction: 0,      // Timer for hit stagger animation
+            deathAnim: 0,        // Timer for death animation
+            isDead: false
         };
 
         // ==================== ENTITIES ====================
         let robots = [];
+        let fruits = [];
         let particles = [];
         let scorePopups = [];
 
+        // Fruit types with colors
+        const FRUIT_TYPES = [
+            { name: 'pineapple', bodyColor: '#f4d03f', topColor: '#27ae60' },
+            { name: 'banana', bodyColor: '#f1c40f', topColor: '#f39c12' },
+            { name: 'cherry', bodyColor: '#e74c3c', topColor: '#27ae60' },
+            { name: 'apple', bodyColor: '#e74c3c', topColor: '#27ae60' },
+            { name: 'strawberry', bodyColor: '#ff6b6b', topColor: '#27ae60' }
+        ];
+
         // ==================== PARALLAX BACKGROUND ====================
         const background = {
+            stars: Array.from({length: 50}, () => ({
+                x: Math.random() * CONFIG.BASE_WIDTH,
+                y: Math.random() * 80,
+                size: Math.random() < 0.3 ? 2 : 1,
+                twinkle: Math.random() * Math.PI * 2
+            })),
+            clouds: [
+                { x: 50, y: 30, width: 60 },
+                { x: 200, y: 45, width: 45 },
+                { x: 350, y: 25, width: 55 },
+                { x: 500, y: 40, width: 50 }
+            ],
             mountains: [
                 { x: 0, width: 200, height: 60 },
                 { x: 180, width: 150, height: 45 },
@@ -180,13 +346,13 @@
                 { x: 500, width: 160, height: 50 }
             ],
             buildings: [
-                { x: 0, width: 60, height: 80 },
-                { x: 70, width: 45, height: 60 },
-                { x: 130, width: 70, height: 90 },
-                { x: 210, width: 50, height: 70 },
-                { x: 280, width: 65, height: 85 },
-                { x: 360, width: 55, height: 65 },
-                { x: 430, width: 75, height: 95 }
+                { x: 0, width: 60, height: 80, color: '#1a237e', hasSign: true },
+                { x: 70, width: 45, height: 60, color: '#0d47a1', hasSign: false },
+                { x: 130, width: 70, height: 90, color: '#1565c0', hasSign: true },
+                { x: 210, width: 50, height: 70, color: '#0d47a1', hasSign: false },
+                { x: 280, width: 65, height: 85, color: '#1a237e', hasSign: true },
+                { x: 360, width: 55, height: 65, color: '#1565c0', hasSign: false },
+                { x: 430, width: 75, height: 95, color: '#0d47a1', hasSign: true }
             ],
             groundOffset: 0
         };
@@ -206,6 +372,9 @@
 
             // Setup input
             setupInput();
+
+            // Load high scores
+            loadHighScores();
 
             // Start game
             resetGame();
@@ -239,6 +408,9 @@
             game.nextSpawnTime = 300; // 5 seconds before first robot
             game.difficulty = 1;
             game.gameOver = false;
+            game.enteringName = false;
+            game.playerName = '';
+            game.newHighScoreRank = -1;
 
             ninja.y = CONFIG.GROUND_Y;
             ninja.velocityY = 0;
@@ -247,17 +419,38 @@
             ninja.slashTimer = 0;
             ninja.slashCooldown = 0;
             ninja.invincible = 60; // Brief invincibility at start
+            ninja.hitReaction = 0;
+            ninja.deathAnim = 0;
+            ninja.isDead = false;
 
             robots = [];
+            fruits = [];
             particles = [];
             scorePopups = [];
+            fruitSpawnTimer = 0;
+            nextFruitSpawnTime = 200;
         }
 
         // ==================== INPUT HANDLING ====================
         function setupInput() {
             // Keyboard
             document.addEventListener('keydown', (e) => {
-                // Handle restart first
+                // Handle high score name entry
+                if (game.gameOver && game.enteringName) {
+                    e.preventDefault();
+                    if (e.code === 'Enter' && game.playerName.length === 3) {
+                        // Submit name
+                        addHighScore(game.playerName, game.score, game.newHighScoreRank);
+                        game.enteringName = false;
+                    } else if (e.code === 'Backspace' && game.playerName.length > 0) {
+                        game.playerName = game.playerName.slice(0, -1);
+                    } else if (e.key.length === 1 && e.key.match(/[a-zA-Z]/) && game.playerName.length < 3) {
+                        game.playerName += e.key.toUpperCase();
+                    }
+                    return;
+                }
+
+                // Handle restart
                 if (game.gameOver) {
                     if (e.code === 'Space' || e.code === 'Enter') {
                         e.preventDefault();
@@ -282,6 +475,7 @@
                 }
                 if (e.code === 'KeyS' || e.code === 'KeyD' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
                     game.keys.slash = false;
+                    game.keys.slashUsed = false;  // Allow slashing again after key release
                 }
             });
 
@@ -291,7 +485,7 @@
 
             jumpBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                if (game.gameOver) {
+                if (game.gameOver && !game.enteringName) {
                     resetGame();
                     return;
                 }
@@ -301,17 +495,17 @@
 
             slashBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                if (game.gameOver) {
+                if (game.gameOver && !game.enteringName) {
                     resetGame();
                     return;
                 }
                 game.keys.slash = true;
             });
-            slashBtn.addEventListener('touchend', () => game.keys.slash = false);
+            slashBtn.addEventListener('touchend', () => { game.keys.slash = false; game.keys.slashUsed = false; });
 
-            // Click to restart when game over
+            // Click to restart when game over (but not during name entry)
             game.canvas.addEventListener('click', () => {
-                if (game.gameOver) {
+                if (game.gameOver && !game.enteringName) {
                     resetGame();
                 }
             });
@@ -355,11 +549,17 @@
             // Update score popups
             updateScorePopups();
 
-            // Spawn robots
+            // Spawn robots and fruit
             spawnRobots();
+            spawnFruit();
 
-            // Check collisions
-            checkCollisions();
+            // Update fruit
+            updateFruit();
+
+            // Check collisions (not during death animation)
+            if (!ninja.isDead) {
+                checkCollisions();
+            }
 
             // Update background
             updateBackground();
@@ -367,6 +567,20 @@
 
         // ==================== NINJA UPDATE ====================
         function updateNinja() {
+            // Death animation - only update death timer
+            if (ninja.isDead) {
+                ninja.deathAnim--;
+                if (ninja.deathAnim <= 0) {
+                    game.gameOver = true;
+                    game.newHighScoreRank = checkHighScore(game.score);
+                    if (game.newHighScoreRank >= 0) {
+                        game.enteringName = true;
+                        game.playerName = '';
+                    }
+                }
+                return; // Skip all other ninja updates during death
+            }
+
             // Animation
             ninja.animTimer++;
             if (ninja.animTimer >= 6) {
@@ -382,7 +596,11 @@
 
             // Apply gravity
             if (ninja.isJumping) {
-                ninja.velocityY += CONFIG.GRAVITY;
+                // Use reduced gravity near the peak for hang time
+                const isNearPeak = Math.abs(ninja.velocityY) < 3;
+                const gravity = isNearPeak ? CONFIG.FLOAT_GRAVITY : CONFIG.GRAVITY;
+
+                ninja.velocityY += gravity;
                 ninja.y += ninja.velocityY;
 
                 // Land
@@ -398,9 +616,10 @@
                 ninja.slashCooldown--;
             }
 
-            if (game.keys.slash && !ninja.isSlashing && ninja.slashCooldown === 0) {
+            if (game.keys.slash && !game.keys.slashUsed && !ninja.isSlashing && ninja.slashCooldown === 0) {
                 ninja.isSlashing = true;
                 ninja.slashTimer = CONFIG.SLASH_DURATION;
+                game.keys.slashUsed = true;  // Must release key before slashing again
             }
 
             if (ninja.isSlashing) {
@@ -414,6 +633,11 @@
             // Invincibility
             if (ninja.invincible > 0) {
                 ninja.invincible--;
+            }
+
+            // Hit reaction timer
+            if (ninja.hitReaction > 0) {
+                ninja.hitReaction--;
             }
         }
 
@@ -465,6 +689,50 @@
             }
         }
 
+        // ==================== FRUIT SPAWNING & UPDATE ====================
+        let fruitSpawnTimer = 0;
+        let nextFruitSpawnTime = 200;
+
+        function spawnFruit() {
+            fruitSpawnTimer++;
+
+            if (fruitSpawnTimer >= nextFruitSpawnTime) {
+                fruitSpawnTimer = 0;
+                nextFruitSpawnTime = 180 + Math.random() * 120;
+
+                const fruitType = FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+                const flyHeight = 90 + Math.random() * 20; // Height in the air (matches jump peak)
+
+                fruits.push({
+                    x: CONFIG.BASE_WIDTH + 20,
+                    y: CONFIG.GROUND_Y - flyHeight,
+                    width: 20,
+                    height: 20,
+                    type: fruitType,
+                    bobOffset: Math.random() * Math.PI * 2,
+                    bobTimer: 0
+                });
+            }
+        }
+
+        function updateFruit() {
+            for (let i = fruits.length - 1; i >= 0; i--) {
+                const fruit = fruits[i];
+
+                // Move
+                fruit.x -= CONFIG.SCROLL_SPEED + 1;
+
+                // Bob up and down
+                fruit.bobTimer += 0.1;
+                fruit.baseY = fruit.y;
+
+                // Remove if off screen
+                if (fruit.x < -fruit.width) {
+                    fruits.splice(i, 1);
+                }
+            }
+        }
+
         // ==================== COLLISION DETECTION ====================
         function checkCollisions() {
             const ninjaBox = {
@@ -474,13 +742,35 @@
                 height: ninja.height
             };
 
-            // Slash hitbox (extends in front of ninja)
-            const slashBox = ninja.isSlashing ? {
-                x: ninja.x + ninja.width / 2 - 5,
-                y: ninja.y - ninja.height + 5,
-                width: 30,
-                height: ninja.height - 10
-            } : null;
+            // Ninja feet hitbox (for stomping)
+            const feetBox = {
+                x: ninja.x - 8,
+                y: ninja.y - 6,
+                width: 16,
+                height: 6
+            };
+
+            // Slash hitbox (follows sword swing arc)
+            let slashBox = null;
+            if (ninja.isSlashing) {
+                const slashProgress = 1 - ninja.slashTimer / CONFIG.SLASH_DURATION;
+                const eased = 1 - (1 - slashProgress) * (1 - slashProgress);
+                const swordAngle = -2.2 + eased * 2.6;
+                const swordLength = 32;
+                const pivotX = ninja.x + 12;
+                const pivotY = ninja.y - 10;
+
+                // Hitbox at sword tip area
+                const tipX = pivotX + Math.cos(swordAngle) * swordLength;
+                const tipY = pivotY + Math.sin(swordAngle) * swordLength;
+
+                slashBox = {
+                    x: tipX - 15,
+                    y: tipY - 15,
+                    width: 30,
+                    height: 30
+                };
+            }
 
             for (let i = robots.length - 1; i >= 0; i--) {
                 const robot = robots[i];
@@ -490,6 +780,24 @@
                     width: robot.width,
                     height: robot.height
                 };
+
+                // Robot head hitbox (for stomping)
+                const robotHeadBox = {
+                    x: robot.x - robot.width / 2,
+                    y: robot.y - robot.height,
+                    width: robot.width,
+                    height: 10
+                };
+
+                // Check stomp collision (ninja falling and feet hit robot head)
+                if (ninja.isJumping && ninja.velocityY > 0 && boxCollision(feetBox, robotHeadBox)) {
+                    // Squash the robot!
+                    destroyRobot(robot, i, true);
+                    addScore(25, robot.x, robot.y - robot.height);
+                    // Bounce up
+                    ninja.velocityY = CONFIG.JUMP_FORCE * 0.6;
+                    continue;
+                }
 
                 // Check if ninja jumped over robot
                 if (!robot.jumped && ninja.isJumping &&
@@ -512,6 +820,24 @@
                     takeDamage();
                 }
             }
+
+            // Check fruit collisions (slash only)
+            for (let i = fruits.length - 1; i >= 0; i--) {
+                const fruit = fruits[i];
+                const bobY = Math.sin(fruit.bobTimer + fruit.bobOffset) * 5;
+                const fruitBox = {
+                    x: fruit.x - fruit.width / 2,
+                    y: fruit.y + bobY - fruit.height / 2,
+                    width: fruit.width,
+                    height: fruit.height
+                };
+
+                // Only slashing can hit fruit
+                if (slashBox && boxCollision(slashBox, fruitBox)) {
+                    destroyFruit(fruit, i);
+                    addScore(75, fruit.x, fruit.y + bobY); // 3x points!
+                }
+            }
         }
 
         function boxCollision(a, b) {
@@ -521,14 +847,15 @@
                    a.y + a.height > b.y;
         }
 
-        function destroyRobot(robot, index) {
+        function destroyRobot(robot, index, squashed = false) {
             // Create explosion particles
-            for (let i = 0; i < 12; i++) {
+            const particleCount = squashed ? 8 : 12;
+            for (let i = 0; i < particleCount; i++) {
                 particles.push({
                     x: robot.x,
-                    y: robot.y - robot.height / 2,
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8 - 2,
+                    y: squashed ? robot.y - 5 : robot.y - robot.height / 2,
+                    vx: (Math.random() - 0.5) * (squashed ? 12 : 8),
+                    vy: squashed ? (Math.random() - 0.8) * 4 : (Math.random() - 0.5) * 8 - 2,
                     size: 3 + Math.random() * 4,
                     color: Math.random() < 0.5 ? CONFIG.COLORS.ROBOT_ACCENT : CONFIG.COLORS.ROBOT_BODY,
                     life: 30
@@ -538,26 +865,46 @@
             robots.splice(index, 1);
         }
 
+        function destroyFruit(fruit, index) {
+            // Create colorful fruit explosion particles
+            for (let i = 0; i < 10; i++) {
+                const bobY = Math.sin(fruit.bobTimer + fruit.bobOffset) * 5;
+                particles.push({
+                    x: fruit.x,
+                    y: fruit.y + bobY,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10 - 2,
+                    size: 3 + Math.random() * 5,
+                    color: Math.random() < 0.7 ? fruit.type.bodyColor : fruit.type.topColor,
+                    life: 35
+                });
+            }
+
+            fruits.splice(index, 1);
+        }
+
         function takeDamage() {
             game.health--;
             ninja.invincible = CONFIG.INVINCIBILITY;
+            ninja.hitReaction = 30; // 0.5 second hit stagger
             game.combo = 1;
 
             // Screen shake effect (simple version - just particles)
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 8; i++) {
                 particles.push({
                     x: ninja.x,
                     y: ninja.y - ninja.height / 2,
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: (Math.random() - 0.5) * 6,
-                    size: 4,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    size: 4 + Math.random() * 3,
                     color: CONFIG.COLORS.HEALTH,
-                    life: 20
+                    life: 25
                 });
             }
 
             if (game.health <= 0) {
-                game.gameOver = true;
+                ninja.isDead = true;
+                ninja.deathAnim = 120; // 2 second death animation
             }
         }
 
@@ -622,6 +969,25 @@
                 background.groundOffset += 32;
             }
 
+            // Move stars (very slow)
+            for (const star of background.stars) {
+                star.x -= CONFIG.SCROLL_SPEED * 0.05;
+                if (star.x < 0) {
+                    star.x = CONFIG.BASE_WIDTH;
+                    star.y = Math.random() * 80;
+                }
+            }
+
+            // Move clouds (slow)
+            for (const c of background.clouds) {
+                c.x -= CONFIG.SCROLL_SPEED * 0.15;
+                if (c.x + c.width < 0) {
+                    c.x = CONFIG.BASE_WIDTH + Math.random() * 100;
+                    c.y = 20 + Math.random() * 30;
+                    c.width = 40 + Math.random() * 30;
+                }
+            }
+
             // Move mountains (slow)
             for (const m of background.mountains) {
                 m.x -= CONFIG.SCROLL_SPEED * 0.2;
@@ -636,6 +1002,8 @@
                 if (b.x + b.width < 0) {
                     b.x = CONFIG.BASE_WIDTH + Math.random() * 50;
                     b.height = 50 + Math.random() * 50;
+                    b.hasSign = Math.random() > 0.5;
+                    b.color = ['#1a237e', '#0d47a1', '#1565c0'][Math.floor(Math.random() * 3)];
                 }
             }
         }
@@ -659,6 +1027,11 @@
                 drawRobot(robot);
             }
 
+            // Draw fruit
+            for (const fruit of fruits) {
+                drawFruit(fruit);
+            }
+
             // Draw ninja
             drawNinja();
 
@@ -679,60 +1052,239 @@
 
         function drawBackground() {
             const ctx = game.ctx;
+            const time = Date.now() / 1000;
 
-            // Mountains
-            ctx.fillStyle = CONFIG.COLORS.MOUNTAINS;
+            // Stars (twinkling)
+            for (const star of background.stars) {
+                const twinkle = Math.sin(time * 2 + star.twinkle) * 0.3 + 0.7;
+                ctx.fillStyle = `rgba(255, 255, 255, ${twinkle})`;
+                ctx.fillRect(star.x, star.y, star.size, star.size);
+            }
+
+            // Moon
+            ctx.fillStyle = '#f5f5dc';
+            ctx.beginPath();
+            ctx.arc(320, 40, 20, 0, Math.PI * 2);
+            ctx.fill();
+            // Moon craters
+            ctx.fillStyle = '#e0e0c0';
+            ctx.beginPath();
+            ctx.arc(315, 35, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(325, 45, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(318, 48, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Clouds (dark purple, slow moving)
+            ctx.fillStyle = 'rgba(50, 30, 80, 0.6)';
+            for (const c of background.clouds) {
+                drawCloud(c.x, c.y, c.width);
+            }
+
+            // Mountains with snow caps
             for (const m of background.mountains) {
+                // Mountain body
+                ctx.fillStyle = '#1a1a3e';
                 ctx.beginPath();
                 ctx.moveTo(m.x, CONFIG.GROUND_Y);
                 ctx.lineTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height);
                 ctx.lineTo(m.x + m.width, CONFIG.GROUND_Y);
                 ctx.fill();
+
+                // Mountain shading
+                ctx.fillStyle = '#12122e';
+                ctx.beginPath();
+                ctx.moveTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height);
+                ctx.lineTo(m.x + m.width * 0.7, CONFIG.GROUND_Y - m.height * 0.3);
+                ctx.lineTo(m.x + m.width, CONFIG.GROUND_Y);
+                ctx.lineTo(m.x + m.width / 2, CONFIG.GROUND_Y);
+                ctx.fill();
+
+                // Snow cap
+                ctx.fillStyle = '#e8e8e8';
+                ctx.beginPath();
+                ctx.moveTo(m.x + m.width * 0.35, CONFIG.GROUND_Y - m.height * 0.7);
+                ctx.lineTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height);
+                ctx.lineTo(m.x + m.width * 0.65, CONFIG.GROUND_Y - m.height * 0.7);
+                ctx.lineTo(m.x + m.width * 0.55, CONFIG.GROUND_Y - m.height * 0.75);
+                ctx.lineTo(m.x + m.width * 0.45, CONFIG.GROUND_Y - m.height * 0.75);
+                ctx.fill();
             }
 
-            // Buildings
-            ctx.fillStyle = CONFIG.COLORS.BUILDINGS;
+            // Buildings with details
             for (const b of background.buildings) {
+                // Building body
+                ctx.fillStyle = b.color;
                 ctx.fillRect(b.x, CONFIG.GROUND_Y - b.height, b.width, b.height);
 
-                // Windows
-                ctx.fillStyle = '#ffd700';
+                // Building edge highlight
+                ctx.fillStyle = '#2a3a9e';
+                ctx.fillRect(b.x, CONFIG.GROUND_Y - b.height, 2, b.height);
+
+                // Building edge shadow
+                ctx.fillStyle = '#0a0a2e';
+                ctx.fillRect(b.x + b.width - 2, CONFIG.GROUND_Y - b.height, 2, b.height);
+
+                // Roof details
+                ctx.fillStyle = '#333';
+                ctx.fillRect(b.x, CONFIG.GROUND_Y - b.height, b.width, 3);
+
+                // Windows with variety
                 const windowSize = 4;
                 const windowGap = 8;
-                for (let wy = CONFIG.GROUND_Y - b.height + 8; wy < CONFIG.GROUND_Y - 10; wy += windowGap) {
+                for (let wy = CONFIG.GROUND_Y - b.height + 10; wy < CONFIG.GROUND_Y - 10; wy += windowGap) {
                     for (let wx = b.x + 6; wx < b.x + b.width - 6; wx += windowGap) {
-                        if (Math.random() > 0.3) {
+                        // Some windows lit, some dark
+                        const isLit = ((wx * 7 + wy * 13) % 10) > 3;
+                        if (isLit) {
+                            ctx.fillStyle = '#ffd700';
+                            ctx.fillRect(wx, wy, windowSize, windowSize);
+                            // Window glow
+                            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+                            ctx.fillRect(wx - 1, wy - 1, windowSize + 2, windowSize + 2);
+                        } else {
+                            ctx.fillStyle = '#1a1a4e';
                             ctx.fillRect(wx, wy, windowSize, windowSize);
                         }
                     }
                 }
-                ctx.fillStyle = CONFIG.COLORS.BUILDINGS;
+
+                // Neon signs on some buildings
+                if (b.hasSign && b.height > 70) {
+                    const signY = CONFIG.GROUND_Y - b.height + 20;
+                    const signColor = ['#ff00ff', '#00ffff', '#ff6600'][Math.floor(b.x / 100) % 3];
+                    const glow = Math.sin(time * 3 + b.x) * 0.2 + 0.8;
+
+                    ctx.fillStyle = signColor;
+                    ctx.globalAlpha = glow;
+                    ctx.fillRect(b.x + 8, signY, b.width - 16, 6);
+                    // Sign glow
+                    ctx.fillStyle = signColor;
+                    ctx.globalAlpha = glow * 0.3;
+                    ctx.fillRect(b.x + 6, signY - 2, b.width - 12, 10);
+                    ctx.globalAlpha = 1;
+                }
             }
+        }
+
+        function drawCloud(x, y, width) {
+            const ctx = game.ctx;
+            // Fluffy cloud shape
+            ctx.beginPath();
+            ctx.arc(x, y + 10, width * 0.3, 0, Math.PI * 2);
+            ctx.arc(x + width * 0.3, y + 5, width * 0.35, 0, Math.PI * 2);
+            ctx.arc(x + width * 0.6, y + 8, width * 0.3, 0, Math.PI * 2);
+            ctx.arc(x + width * 0.4, y + 12, width * 0.25, 0, Math.PI * 2);
+            ctx.fill();
         }
 
         function drawGround() {
             const ctx = game.ctx;
 
-            // Ground fill
+            // Ground fill gradient effect
+            ctx.fillStyle = '#3d2066';
+            ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, 15);
             ctx.fillStyle = CONFIG.COLORS.GROUND;
-            ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT - CONFIG.GROUND_Y);
+            ctx.fillRect(0, CONFIG.GROUND_Y + 15, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT - CONFIG.GROUND_Y - 15);
 
-            // Ground top line
-            ctx.fillStyle = CONFIG.COLORS.GROUND_TOP;
-            ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, 4);
+            // Ground top edge (lit)
+            ctx.fillStyle = '#9966cc';
+            ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, 2);
 
-            // Ground pattern (scrolling)
+            // Ground secondary line
             ctx.fillStyle = CONFIG.COLORS.GROUND_TOP;
+            ctx.fillRect(0, CONFIG.GROUND_Y + 2, CONFIG.BASE_WIDTH, 3);
+
+            // Brick/tile pattern (scrolling)
             for (let x = background.groundOffset; x < CONFIG.BASE_WIDTH; x += 32) {
-                ctx.fillRect(x, CONFIG.GROUND_Y + 12, 16, 4);
-                ctx.fillRect(x + 8, CONFIG.GROUND_Y + 24, 16, 4);
+                // Top row bricks
+                ctx.fillStyle = '#6a4c93';
+                ctx.fillRect(x, CONFIG.GROUND_Y + 8, 14, 6);
+                ctx.fillRect(x + 16, CONFIG.GROUND_Y + 8, 14, 6);
+
+                // Brick highlights
+                ctx.fillStyle = '#8066aa';
+                ctx.fillRect(x, CONFIG.GROUND_Y + 8, 14, 2);
+                ctx.fillRect(x + 16, CONFIG.GROUND_Y + 8, 14, 2);
+
+                // Bottom row bricks (offset)
+                ctx.fillStyle = '#5a3c83';
+                ctx.fillRect(x + 8, CONFIG.GROUND_Y + 18, 14, 6);
+                ctx.fillRect(x + 24, CONFIG.GROUND_Y + 18, 14, 6);
+
+                // Brick shadows
+                ctx.fillStyle = '#4a2c73';
+                ctx.fillRect(x, CONFIG.GROUND_Y + 12, 14, 2);
+                ctx.fillRect(x + 16, CONFIG.GROUND_Y + 12, 14, 2);
+                ctx.fillRect(x + 8, CONFIG.GROUND_Y + 22, 14, 2);
             }
+
+            // Bottom edge fade
+            ctx.fillStyle = '#2d1656';
+            ctx.fillRect(0, CONFIG.GROUND_Y + 28, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT - CONFIG.GROUND_Y - 28);
         }
 
         function drawNinja() {
             const ctx = game.ctx;
-            const x = ninja.x;
-            const y = ninja.y;
+            let x = ninja.x;
+            let y = ninja.y;
+
+            const flameTimer = Date.now() / 80;
+
+            // === DEATH ANIMATION ===
+            if (ninja.isDead) {
+                const deathProgress = 1 - (ninja.deathAnim / 120);
+                ctx.save();
+
+                // Fall backwards and fade
+                ctx.globalAlpha = Math.max(0, 1 - deathProgress * 0.8);
+                const fallAngle = deathProgress * Math.PI * 0.4;
+                const fallY = deathProgress * 30;
+
+                ctx.translate(x, y - 16);
+                ctx.rotate(fallAngle);
+                ctx.translate(-x, -(y - 16));
+
+                y += fallY;
+
+                // Draw dying ninja (simplified)
+                // Body falls
+                ctx.fillStyle = CONFIG.COLORS.NINJA;
+                ctx.fillRect(x - 10, y - 28, 20, 28);
+
+                // Face in pain
+                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+                ctx.fillRect(x - 6, y - 26, 12, 10);
+                // X eyes
+                ctx.fillStyle = '#000';
+                ctx.fillRect(x - 4, y - 24, 2, 2);
+                ctx.fillRect(x - 2, y - 22, 2, 2);
+                ctx.fillRect(x + 2, y - 24, 2, 2);
+                ctx.fillRect(x + 4, y - 22, 2, 2);
+                // Open mouth
+                ctx.fillRect(x - 2, y - 18, 4, 3);
+
+                // Hair
+                ctx.fillStyle = CONFIG.COLORS.NINJA_HAIR;
+                ctx.fillRect(x - 7, y - 32, 14, 6);
+
+                // Bandana flying off
+                ctx.fillStyle = CONFIG.COLORS.HEALTH;
+                const bandanaX = x - 20 - deathProgress * 40;
+                const bandanaY = y - 30 - deathProgress * 20 + Math.sin(deathProgress * 10) * 10;
+                ctx.save();
+                ctx.translate(bandanaX, bandanaY);
+                ctx.rotate(deathProgress * Math.PI * 2);
+                ctx.fillRect(-6, -2, 12, 4);
+                ctx.fillRect(6, -1, 8, 2);
+                ctx.restore();
+
+                ctx.restore();
+                return;
+            }
 
             // Skip drawing every other frame when invincible (flashing)
             if (ninja.invincible > 0 && Math.floor(ninja.invincible / 4) % 2 === 0) {
@@ -741,78 +1293,273 @@
 
             ctx.save();
 
-            // Body
-            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            // === HIT REACTION ===
+            let hitShake = 0;
+            let hitTilt = 0;
+            if (ninja.hitReaction > 0) {
+                hitShake = Math.sin(ninja.hitReaction * 2) * 3;
+                hitTilt = Math.sin(ninja.hitReaction * 0.5) * 0.2;
+                x += hitShake;
+
+                // Tilt the character when hit
+                ctx.translate(x, y - 16);
+                ctx.rotate(hitTilt);
+                ctx.translate(-x, -(y - 16));
+            }
 
             // Determine pose
             let bobY = 0;
-            if (!ninja.isJumping) {
+            if (!ninja.isJumping && ninja.hitReaction === 0) {
                 bobY = Math.sin(ninja.animFrame * Math.PI / 2) * 2;
             }
 
-            // Head
-            ctx.fillStyle = CONFIG.COLORS.NINJA;
-            ctx.fillRect(x - 8, y - 28 + bobY, 16, 12);
-
-            // Headband
+            // === RED BANDANA ===
             ctx.fillStyle = CONFIG.COLORS.HEALTH;
-            ctx.fillRect(x - 9, y - 24 + bobY, 18, 3);
+            ctx.fillRect(x - 8, y - 29 + bobY, 16, 4);  // Main bandana
+            // Bandana knot
+            ctx.fillRect(x - 10, y - 28 + bobY, 3, 3);
+            // Flowing tails (animated)
+            const tailWave = Math.sin(flameTimer * 1.5) * 2;
+            const tailWave2 = Math.sin(flameTimer * 1.5 + 1) * 2;
+            ctx.fillRect(x - 14 - tailWave, y - 28 + bobY, 5, 2);
+            ctx.fillRect(x - 18 - tailWave2, y - 27 + bobY, 5, 2);
+            ctx.fillRect(x - 12 - tailWave, y - 30 + bobY, 4, 2);
+            ctx.fillRect(x - 16 - tailWave2, y - 29 + bobY, 4, 2);
+            // Bandana shadow
+            ctx.fillStyle = '#c0392b';
+            ctx.fillRect(x - 8, y - 26 + bobY, 16, 1);
 
-            // Eye
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(x + 2, y - 26 + bobY, 4, 3);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(x + 4, y - 26 + bobY, 2, 3);
+            // === BLOND HAIR ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA_HAIR;
+            ctx.fillRect(x - 7, y - 33 + bobY, 14, 5);  // Top of hair
+            ctx.fillRect(x - 8, y - 29 + bobY, 4, 3);   // Left side hair
+            ctx.fillRect(x + 4, y - 29 + bobY, 4, 3);   // Right side hair
+            // Hair spikes
+            ctx.fillRect(x - 5, y - 36 + bobY, 3, 4);
+            ctx.fillRect(x + 1, y - 37 + bobY, 3, 5);
+            ctx.fillRect(x + 5, y - 35 + bobY, 3, 3);
+            // Hair highlight
+            ctx.fillStyle = '#fff59d';
+            ctx.fillRect(x - 3, y - 35 + bobY, 3, 2);
+            ctx.fillRect(x + 2, y - 36 + bobY, 2, 2);
+            // Hair shadow
+            ctx.fillStyle = CONFIG.COLORS.NINJA_HAIR_DARK;
+            ctx.fillRect(x - 6, y - 30 + bobY, 3, 2);
+            ctx.fillRect(x + 4, y - 30 + bobY, 3, 2);
 
-            // Body
-            ctx.fillStyle = CONFIG.COLORS.NINJA;
-            ctx.fillRect(x - 10, y - 16 + bobY, 20, 16);
+            // === FACE ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+            ctx.fillRect(x - 6, y - 26 + bobY, 12, 10);
 
-            // Belt
-            ctx.fillStyle = CONFIG.COLORS.NINJA_ACCENT;
-            ctx.fillRect(x - 10, y - 8 + bobY, 20, 3);
-
-            // Legs (animated)
-            ctx.fillStyle = CONFIG.COLORS.NINJA;
-            if (ninja.isJumping) {
-                // Tucked legs
-                ctx.fillRect(x - 8, y - 4, 6, 4);
-                ctx.fillRect(x + 2, y - 4, 6, 4);
+            // Eyes - change expression when hit
+            if (ninja.hitReaction > 0) {
+                // Hurt expression - squinting
+                ctx.fillStyle = '#000';
+                ctx.fillRect(x - 4, y - 23 + bobY, 4, 1);
+                ctx.fillRect(x + 1, y - 23 + bobY, 4, 1);
+                // Gritted teeth
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x - 2, y - 18 + bobY, 5, 2);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(x - 1, y - 17 + bobY, 1, 1);
+                ctx.fillRect(x + 1, y - 17 + bobY, 1, 1);
             } else {
-                // Running animation
-                const legOffset = Math.sin(ninja.animFrame * Math.PI / 2) * 4;
-                ctx.fillRect(x - 8, y - 4, 6, 4);
-                ctx.fillRect(x + 2, y - 4, 6, 4);
-                // Feet
-                ctx.fillRect(x - 10 + legOffset, y - 2, 6, 2);
-                ctx.fillRect(x + 4 - legOffset, y - 2, 6, 2);
+                // Normal eyes
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x - 4, y - 24 + bobY, 4, 3);
+                ctx.fillRect(x + 1, y - 24 + bobY, 4, 3);
+                ctx.fillStyle = '#2196f3';
+                ctx.fillRect(x - 2, y - 24 + bobY, 2, 3);
+                ctx.fillRect(x + 3, y - 24 + bobY, 2, 3);
+                // Eye shine
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x - 3, y - 24 + bobY, 1, 1);
+                ctx.fillRect(x + 2, y - 24 + bobY, 1, 1);
+                // Determined eyebrows
+                ctx.fillStyle = CONFIG.COLORS.NINJA_HAIR_DARK;
+                ctx.fillRect(x - 4, y - 25 + bobY, 3, 1);
+                ctx.fillRect(x + 2, y - 25 + bobY, 3, 1);
+                // Mouth
+                ctx.fillStyle = '#e57373';
+                ctx.fillRect(x - 1, y - 18 + bobY, 3, 1);
             }
 
-            // Arms
+            // === BLACK NINJA MASK (around neck/lower face) ===
             ctx.fillStyle = CONFIG.COLORS.NINJA;
-            if (ninja.isSlashing) {
-                // Slash pose - arm extended
-                ctx.fillRect(x + 8, y - 16 + bobY, 20, 6);
+            ctx.fillRect(x - 7, y - 17 + bobY, 14, 3);
 
-                // Sword
-                ctx.fillStyle = '#c0c0c0';
-                ctx.fillRect(x + 26, y - 20 + bobY, 4, 14);
-                ctx.fillStyle = '#ffd700';
-                ctx.fillRect(x + 26, y - 12 + bobY, 4, 4);
+            // === BLACK NINJA BODY ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 10, y - 14 + bobY, 20, 14);
+            // Body shading
+            ctx.fillStyle = CONFIG.COLORS.NINJA_ACCENT;
+            ctx.fillRect(x - 8, y - 12 + bobY, 4, 10);
+            ctx.fillRect(x + 4, y - 12 + bobY, 4, 10);
+            // Chest detail / fold lines
+            ctx.fillStyle = '#444';
+            ctx.fillRect(x - 1, y - 12 + bobY, 2, 8);
 
-                // Slash effect
-                ctx.fillStyle = CONFIG.COLORS.SLASH;
-                ctx.globalAlpha = 0.7;
-                const slashProgress = 1 - ninja.slashTimer / CONFIG.SLASH_DURATION;
-                ctx.beginPath();
-                ctx.arc(x + 30, y - 14 + bobY, 15 + slashProgress * 10, -0.5, 0.5);
-                ctx.lineTo(x + 30, y - 14 + bobY);
-                ctx.fill();
-                ctx.globalAlpha = 1;
+            // === RED BELT ===
+            ctx.fillStyle = CONFIG.COLORS.HEALTH;
+            ctx.fillRect(x - 10, y - 4 + bobY, 20, 3);
+            ctx.fillStyle = '#ffeb3b';
+            ctx.fillRect(x - 2, y - 4 + bobY, 4, 3);
+
+            // === LEGS ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            if (ninja.isJumping) {
+                ctx.fillRect(x - 9, y - 2, 8, 6);
+                ctx.fillRect(x + 1, y - 4, 8, 6);
+                ctx.fillStyle = '#4a4a4a';
+                ctx.fillRect(x - 10, y + 2, 6, 3);
+                ctx.fillRect(x + 4, y, 6, 3);
             } else {
-                // Normal arms
-                ctx.fillRect(x - 14, y - 14 + bobY, 6, 4);
-                ctx.fillRect(x + 8, y - 14 + bobY, 6, 4);
+                const legOffset = Math.sin(ninja.animFrame * Math.PI / 2) * 5;
+                ctx.fillRect(x - 9, y - 2, 7, 6);
+                ctx.fillRect(x + 2, y - 2, 7, 6);
+                ctx.fillStyle = '#4a4a4a';
+                ctx.fillRect(x - 11 + legOffset, y + 2, 7, 3);
+                ctx.fillRect(x + 4 - legOffset, y + 2, 7, 3);
+            }
+
+            // === ARMS & SWORD ===
+            const slashProgress = ninja.isSlashing ? (1 - ninja.slashTimer / CONFIG.SLASH_DURATION) : 0;
+
+            // Sword swing angle: held backward, swings forward toward robots
+            // Robots come from the right, so slash goes from back (left/up) to front (right)
+            let swordAngle;
+            if (ninja.isSlashing) {
+                // Smooth swing arc using easeOutQuad
+                const eased = 1 - (1 - slashProgress) * (1 - slashProgress);
+                swordAngle = -2.2 + eased * 2.6; // -2.2 rad to +0.4 rad (~-125° to +25°)
+            } else {
+                // Ready position - sword held back, ready to swing forward
+                swordAngle = -2.0 + Math.sin(flameTimer * 0.5) * 0.08; // Pointing backward with subtle sway
+            }
+
+            const swordLength = 32;
+            const swordPivotX = x + 12;
+            const swordPivotY = y - 10 + bobY;
+
+            // Calculate sword tip position
+            const swordTipX = swordPivotX + Math.cos(swordAngle) * swordLength;
+            const swordTipY = swordPivotY + Math.sin(swordAngle) * swordLength;
+
+            // Left arm (always visible)
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 14, y - 12 + bobY, 5, 8);
+            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+            ctx.fillRect(x - 14, y - 6 + bobY, 4, 4);
+
+            // Right arm holding sword
+            ctx.save();
+            ctx.translate(swordPivotX, swordPivotY);
+            ctx.rotate(swordAngle);
+
+            // Arm
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(-4, -3, 10, 6);
+            // Hand gripping
+            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+            ctx.fillRect(4, -2, 5, 5);
+
+            // === FLAMING SWORD ===
+            // Handle
+            ctx.fillStyle = '#5d4037';
+            ctx.fillRect(8, -2, 6, 5);
+            // Handle wrap
+            ctx.fillStyle = '#8b0000';
+            ctx.fillRect(9, -1, 2, 3);
+            ctx.fillRect(12, -1, 2, 3);
+            // Guard (cross guard)
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(6, -4, 3, 9);
+            ctx.fillStyle = '#ffab00';
+            ctx.fillRect(6, -1, 3, 3);
+
+            // Blade
+            ctx.fillStyle = '#b0bec5';
+            ctx.fillRect(14, -2, swordLength - 14, 5);
+            // Blade edge highlight
+            ctx.fillStyle = '#eceff1';
+            ctx.fillRect(14, -2, swordLength - 14, 2);
+            // Blade center fuller
+            ctx.fillStyle = '#78909c';
+            ctx.fillRect(16, 0, swordLength - 18, 2);
+            // Blade tip
+            ctx.fillStyle = '#eceff1';
+            ctx.beginPath();
+            ctx.moveTo(swordLength - 2, -2);
+            ctx.lineTo(swordLength + 4, 1);
+            ctx.lineTo(swordLength - 2, 4);
+            ctx.fill();
+
+            // === FLAMES ALONG THE BLADE ===
+            for (let i = 0; i < 6; i++) {
+                const flameX = 16 + i * 4;
+                const flicker = Math.sin(flameTimer * 3 + i * 0.8) * 2;
+                const flicker2 = Math.cos(flameTimer * 2.5 + i * 1.2) * 1.5;
+                const flameSize = 3 + Math.sin(flameTimer * 4 + i) * 1;
+
+                // Outer flame (red/orange)
+                ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+                ctx.fillRect(flameX, -5 - flicker, flameSize, flameSize);
+                ctx.fillRect(flameX + 1, 4 + flicker2, flameSize - 1, flameSize - 1);
+
+                // Mid flame (orange)
+                ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+                ctx.fillRect(flameX + 1, -4 - flicker * 0.7, flameSize - 1, flameSize - 1);
+                ctx.fillRect(flameX, 3 + flicker2 * 0.7, flameSize - 1, flameSize - 1);
+
+                // Inner flame (yellow)
+                ctx.fillStyle = CONFIG.COLORS.FLAME_MID;
+                ctx.fillRect(flameX + 1, -3 - flicker * 0.4, 2, 2);
+                ctx.fillRect(flameX + 1, 2 + flicker2 * 0.4, 2, 2);
+            }
+
+            // Tip flames (larger)
+            const tipFlicker = Math.sin(flameTimer * 4) * 3;
+            ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+            ctx.fillRect(swordLength, -4 - tipFlicker, 5, 5);
+            ctx.fillRect(swordLength + 2, 2 + tipFlicker * 0.5, 4, 4);
+            ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+            ctx.fillRect(swordLength + 2, -2 - tipFlicker * 0.5, 4, 4);
+            ctx.fillStyle = CONFIG.COLORS.FLAME_MID;
+            ctx.fillRect(swordLength + 1, 0, 3, 2);
+
+            ctx.restore();
+
+            // === SLASH TRAIL (fire arc following sword path) ===
+            if (ninja.isSlashing && slashProgress > 0.1) {
+                ctx.save();
+
+                // Draw multiple trail segments for smooth arc
+                const trailSegments = 10;
+                for (let i = 0; i < trailSegments; i++) {
+                    const segmentProgress = slashProgress - (i * 0.06);
+                    if (segmentProgress < 0) continue;
+
+                    const segmentEased = 1 - (1 - segmentProgress) * (1 - segmentProgress);
+                    const trailAngle = -2.2 + segmentEased * 2.6;
+
+                    const trailX = swordPivotX + Math.cos(trailAngle) * (swordLength + 4);
+                    const trailY = swordPivotY + Math.sin(trailAngle) * (swordLength + 4);
+
+                    const alpha = (1 - i / trailSegments) * 0.7 * (1 - slashProgress * 0.3);
+                    const size = 8 + (trailSegments - i) * 1.2;
+
+                    // Fire trail
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+                    ctx.fillRect(trailX - size/2, trailY - size/2, size, size);
+                    ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+                    ctx.fillRect(trailX - size/3, trailY - size/3, size * 0.7, size * 0.7);
+                    ctx.fillStyle = CONFIG.COLORS.FLAME_MID;
+                    ctx.fillRect(trailX - size/4, trailY - size/4, size * 0.5, size * 0.5);
+                }
+
+                ctx.globalAlpha = 1;
+                ctx.restore();
             }
 
             ctx.restore();
@@ -827,41 +1574,231 @@
             ctx.save();
 
             const bobY = Math.sin(robot.animFrame * Math.PI / 2) * 2;
+            const glowTimer = Date.now() / 100;
 
-            // Body
-            ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
             if (isTall) {
-                ctx.fillRect(x - 12, y - 36 + bobY, 24, 32);
+                // === TALL MECH ROBOT ===
+                // Legs
+                ctx.fillStyle = '#444';
+                const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 3;
+                ctx.fillRect(x - 10 - legOffset, y - 8, 8, 10);
+                ctx.fillRect(x + 2 + legOffset, y - 8, 8, 10);
+                // Leg joints
+                ctx.fillStyle = '#666';
+                ctx.fillRect(x - 8 - legOffset, y - 6, 4, 4);
+                ctx.fillRect(x + 4 + legOffset, y - 6, 4, 4);
+                // Feet
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 12 - legOffset, y, 10, 3);
+                ctx.fillRect(x + 2 + legOffset, y, 10, 3);
+
+                // Body
+                ctx.fillStyle = '#555';
+                ctx.fillRect(x - 14, y - 32 + bobY, 28, 26);
+                // Body armor plates
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
+                ctx.fillRect(x - 12, y - 30 + bobY, 24, 10);
+                ctx.fillRect(x - 10, y - 18 + bobY, 20, 10);
+                // Body details
+                ctx.fillStyle = '#333';
+                ctx.fillRect(x - 8, y - 28 + bobY, 16, 2);
+                ctx.fillRect(x - 6, y - 16 + bobY, 12, 2);
+                // Chest core (glowing)
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 4, y - 24 + bobY, 8, 6);
+                ctx.fillStyle = '#ffff00';
+                ctx.globalAlpha = 0.5 + Math.sin(glowTimer) * 0.3;
+                ctx.fillRect(x - 2, y - 22 + bobY, 4, 2);
+                ctx.globalAlpha = 1;
+
                 // Head
-                ctx.fillRect(x - 10, y - 40 + bobY, 20, 8);
+                ctx.fillStyle = '#666';
+                ctx.fillRect(x - 10, y - 40 + bobY, 20, 10);
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
+                ctx.fillRect(x - 8, y - 38 + bobY, 16, 6);
+                // Visor
+                ctx.fillStyle = '#222';
+                ctx.fillRect(x - 7, y - 37 + bobY, 14, 4);
+                // Eyes (glowing)
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_EYES;
+                ctx.fillRect(x - 5, y - 36 + bobY, 4, 2);
+                ctx.fillRect(x + 1, y - 36 + bobY, 4, 2);
+                // Eye glow
+                ctx.fillStyle = '#ff0000';
+                ctx.globalAlpha = 0.6 + Math.sin(glowTimer * 2) * 0.3;
+                ctx.fillRect(x - 4, y - 36 + bobY, 2, 2);
+                ctx.fillRect(x + 2, y - 36 + bobY, 2, 2);
+                ctx.globalAlpha = 1;
+
+                // Antenna
+                ctx.fillStyle = '#888';
+                ctx.fillRect(x - 1, y - 46 + bobY, 2, 6);
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 2, y - 48 + bobY, 4, 3);
+                // Antenna light blinking
+                ctx.fillStyle = '#ff0000';
+                ctx.globalAlpha = Math.sin(glowTimer * 3) > 0 ? 1 : 0.3;
+                ctx.fillRect(x - 1, y - 47 + bobY, 2, 2);
+                ctx.globalAlpha = 1;
+
+                // Arms
+                ctx.fillStyle = '#555';
+                ctx.fillRect(x - 18, y - 28 + bobY, 6, 14);
+                ctx.fillRect(x + 12, y - 28 + bobY, 6, 14);
+                // Claws
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 19, y - 16 + bobY, 3, 6);
+                ctx.fillRect(x - 15, y - 16 + bobY, 3, 6);
+                ctx.fillRect(x + 12, y - 16 + bobY, 3, 6);
+                ctx.fillRect(x + 16, y - 16 + bobY, 3, 6);
+
             } else {
-                ctx.fillRect(x - 10, y - 24 + bobY, 20, 20);
+                // === SMALL SCOUT ROBOT ===
+                // Legs
+                ctx.fillStyle = '#444';
+                const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 3;
+                ctx.fillRect(x - 7 - legOffset, y - 5, 5, 6);
+                ctx.fillRect(x + 2 + legOffset, y - 5, 5, 6);
+                // Feet
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 9 - legOffset, y, 7, 2);
+                ctx.fillRect(x + 2 + legOffset, y, 7, 2);
+
+                // Body
+                ctx.fillStyle = '#555';
+                ctx.fillRect(x - 10, y - 22 + bobY, 20, 18);
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
+                ctx.fillRect(x - 8, y - 20 + bobY, 16, 14);
+                // Chest panel
+                ctx.fillStyle = '#333';
+                ctx.fillRect(x - 5, y - 18 + bobY, 10, 8);
+                // Power core
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 3, y - 16 + bobY, 6, 4);
+                ctx.fillStyle = '#ffff00';
+                ctx.globalAlpha = 0.5 + Math.sin(glowTimer) * 0.3;
+                ctx.fillRect(x - 1, y - 14 + bobY, 2, 2);
+                ctx.globalAlpha = 1;
+
                 // Head
-                ctx.fillRect(x - 8, y - 28 + bobY, 16, 6);
+                ctx.fillStyle = '#666';
+                ctx.fillRect(x - 8, y - 28 + bobY, 16, 8);
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
+                ctx.fillRect(x - 6, y - 26 + bobY, 12, 4);
+                // Eyes
+                ctx.fillStyle = '#222';
+                ctx.fillRect(x - 5, y - 26 + bobY, 10, 3);
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_EYES;
+                ctx.fillRect(x - 4, y - 25 + bobY, 3, 2);
+                ctx.fillRect(x + 1, y - 25 + bobY, 3, 2);
+
+                // Antenna
+                ctx.fillStyle = '#888';
+                ctx.fillRect(x - 1, y - 32 + bobY, 2, 4);
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 2, y - 34 + bobY, 4, 3);
+
+                // Arms
+                ctx.fillStyle = '#555';
+                ctx.fillRect(x - 13, y - 18 + bobY, 4, 10);
+                ctx.fillRect(x + 9, y - 18 + bobY, 4, 10);
+                ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+                ctx.fillRect(x - 13, y - 10 + bobY, 4, 3);
+                ctx.fillRect(x + 9, y - 10 + bobY, 4, 3);
             }
 
-            // Eyes
-            ctx.fillStyle = CONFIG.COLORS.ROBOT_EYES;
-            const eyeY = isTall ? y - 36 + bobY : y - 24 + bobY;
-            ctx.fillRect(x - 6, eyeY, 4, 4);
-            ctx.fillRect(x + 2, eyeY, 4, 4);
+            ctx.restore();
+        }
 
-            // Antenna
-            ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
-            const antennaY = isTall ? y - 40 + bobY : y - 28 + bobY;
-            ctx.fillRect(x - 1, antennaY - 6, 2, 6);
-            ctx.fillRect(x - 3, antennaY - 8, 6, 3);
+        function drawFruit(fruit) {
+            const ctx = game.ctx;
+            const x = fruit.x;
+            const bobY = Math.sin(fruit.bobTimer + fruit.bobOffset) * 5;
+            const y = fruit.y + bobY;
 
-            // Legs
-            ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
-            const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 3;
-            ctx.fillRect(x - 8 - legOffset, y - 6, 6, 6);
-            ctx.fillRect(x + 2 + legOffset, y - 6, 6, 6);
+            ctx.save();
 
-            // Feet
-            ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
-            ctx.fillRect(x - 10 - legOffset, y - 2, 8, 2);
-            ctx.fillRect(x + 2 + legOffset, y - 2, 8, 2);
+            const type = fruit.type.name;
+
+            if (type === 'pineapple') {
+                // Pineapple body
+                ctx.fillStyle = fruit.type.bodyColor;
+                ctx.fillRect(x - 7, y - 6, 14, 16);
+                // Pattern
+                ctx.fillStyle = '#c9a227';
+                for (let py = -4; py < 8; py += 4) {
+                    for (let px = -5; px < 6; px += 4) {
+                        ctx.fillRect(x + px, y + py, 2, 2);
+                    }
+                }
+                // Leaves
+                ctx.fillStyle = fruit.type.topColor;
+                ctx.fillRect(x - 3, y - 12, 2, 6);
+                ctx.fillRect(x + 1, y - 14, 2, 8);
+                ctx.fillRect(x - 5, y - 10, 2, 4);
+                ctx.fillRect(x + 3, y - 10, 2, 4);
+            } else if (type === 'banana') {
+                // Banana curve
+                ctx.fillStyle = fruit.type.bodyColor;
+                ctx.fillRect(x - 8, y - 2, 4, 8);
+                ctx.fillRect(x - 5, y - 5, 4, 10);
+                ctx.fillRect(x - 2, y - 6, 4, 10);
+                ctx.fillRect(x + 2, y - 5, 4, 8);
+                ctx.fillRect(x + 5, y - 2, 4, 5);
+                // Tips
+                ctx.fillStyle = fruit.type.topColor;
+                ctx.fillRect(x - 8, y + 4, 3, 3);
+                ctx.fillRect(x + 6, y - 2, 3, 2);
+            } else if (type === 'cherry') {
+                // Two cherries
+                ctx.fillStyle = fruit.type.bodyColor;
+                ctx.beginPath();
+                ctx.arc(x - 5, y + 2, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + 5, y + 4, 6, 0, Math.PI * 2);
+                ctx.fill();
+                // Stems
+                ctx.fillStyle = fruit.type.topColor;
+                ctx.fillRect(x - 5, y - 8, 2, 10);
+                ctx.fillRect(x + 5, y - 6, 2, 10);
+                ctx.fillRect(x - 4, y - 10, 10, 2);
+                // Shine
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x - 7, y, 2, 2);
+                ctx.fillRect(x + 3, y + 2, 2, 2);
+            } else if (type === 'apple') {
+                // Apple body
+                ctx.fillStyle = fruit.type.bodyColor;
+                ctx.fillRect(x - 7, y - 4, 14, 12);
+                ctx.fillRect(x - 5, y - 6, 10, 2);
+                ctx.fillRect(x - 5, y + 8, 10, 2);
+                // Stem
+                ctx.fillStyle = '#8b4513';
+                ctx.fillRect(x - 1, y - 10, 2, 5);
+                // Leaf
+                ctx.fillStyle = fruit.type.topColor;
+                ctx.fillRect(x + 1, y - 10, 5, 3);
+                // Shine
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x - 4, y - 2, 3, 3);
+            } else if (type === 'strawberry') {
+                // Strawberry body
+                ctx.fillStyle = fruit.type.bodyColor;
+                ctx.fillRect(x - 6, y - 6, 12, 8);
+                ctx.fillRect(x - 4, y + 2, 8, 4);
+                ctx.fillRect(x - 2, y + 6, 4, 2);
+                // Seeds
+                ctx.fillStyle = '#f1c40f';
+                ctx.fillRect(x - 3, y - 3, 2, 2);
+                ctx.fillRect(x + 2, y - 1, 2, 2);
+                ctx.fillRect(x - 1, y + 2, 2, 2);
+                // Leaves
+                ctx.fillStyle = fruit.type.topColor;
+                ctx.fillRect(x - 5, y - 9, 10, 4);
+                ctx.fillRect(x - 7, y - 7, 3, 2);
+                ctx.fillRect(x + 4, y - 7, 3, 2);
+            }
 
             ctx.restore();
         }
@@ -939,16 +1876,45 @@
             ctx.fillStyle = CONFIG.COLORS.HEALTH;
             ctx.font = 'bold 24px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('GAME OVER', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 - 20);
+            ctx.fillText('GAME OVER', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 - 40);
 
             // Final score
             ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
             ctx.font = 'bold 14px monospace';
-            ctx.fillText('FINAL SCORE: ' + game.score, CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 10);
+            ctx.fillText('FINAL SCORE: ' + game.score, CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 - 10);
 
-            // Restart prompt
-            ctx.font = '10px monospace';
-            ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 35);
+            if (game.enteringName) {
+                // New high score!
+                ctx.fillStyle = CONFIG.COLORS.SLASH;
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('NEW HIGH SCORE!', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 15);
+
+                // Name entry
+                ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+                ctx.font = 'bold 16px monospace';
+                const displayName = game.playerName.padEnd(3, '_');
+
+                // Draw each letter with pixelated box
+                const startX = CONFIG.BASE_WIDTH / 2 - 36;
+                for (let i = 0; i < 3; i++) {
+                    const letterX = startX + i * 24;
+
+                    // Box background
+                    ctx.fillStyle = i < game.playerName.length ? '#5c6bc0' : '#333';
+                    ctx.fillRect(letterX, CONFIG.BASE_HEIGHT / 2 + 25, 20, 24);
+
+                    // Letter
+                    ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+                    ctx.fillText(displayName[i], letterX + 10, CONFIG.BASE_HEIGHT / 2 + 43);
+                }
+
+                ctx.font = '10px monospace';
+                ctx.fillText('Type 3 letters, press ENTER', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 70);
+            } else {
+                // Restart prompt
+                ctx.font = '10px monospace';
+                ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 25);
+            }
         }
 
         // ==================== START GAME ====================
