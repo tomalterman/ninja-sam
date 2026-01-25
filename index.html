@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ninja Sam - Robot Runner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #gameCanvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            border: 4px solid #4a4a6a;
+            border-radius: 4px;
+        }
+
+        #touchControls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: none;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+        }
+
+        .touchBtn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .touchBtn:active {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        @media (pointer: coarse) {
+            #touchControls {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="touchControls">
+            <div class="touchBtn" id="jumpBtn">JUMP</div>
+            <div class="touchBtn" id="slashBtn">SLASH</div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== GAME CONFIGURATION ====================
+        const CONFIG = {
+            // Base resolution (SNES-style)
+            BASE_WIDTH: 384,
+            BASE_HEIGHT: 216,
+            SCALE: 3,
+
+            // Physics
+            GRAVITY: 0.8,
+            JUMP_FORCE: -14,
+            GROUND_Y: 170,
+
+            // Game speed
+            SCROLL_SPEED: 4,
+            ROBOT_SPEED: 3,
+
+            // Timing (in frames at 60fps)
+            JUMP_DURATION: 36,      // ~0.6 seconds
+            SLASH_DURATION: 18,     // ~0.3 seconds
+            SLASH_COOLDOWN: 12,     // ~0.2 seconds
+            INVINCIBILITY: 90,      // ~1.5 seconds
+
+            // Spawning
+            MIN_SPAWN_INTERVAL: 60,
+            MAX_SPAWN_INTERVAL: 150,
+
+            // Colors (SNES palette style)
+            COLORS: {
+                SKY: '#1a1a2e',
+                MOUNTAINS: '#16213e',
+                BUILDINGS: '#0f3460',
+                GROUND: '#533483',
+                GROUND_TOP: '#7952a3',
+                NINJA: '#2d3a8c',
+                NINJA_ACCENT: '#5c6bc0',
+                NINJA_SKIN: '#ffccaa',
+                ROBOT_BODY: '#607d8b',
+                ROBOT_ACCENT: '#ff5722',
+                ROBOT_EYES: '#f44336',
+                SLASH: '#ffd700',
+                UI_TEXT: '#ffffff',
+                HEALTH: '#ff4757'
+            }
+        };
+
+        // ==================== GAME STATE ====================
+        const game = {
+            canvas: null,
+            ctx: null,
+            running: false,
+            gameOver: false,
+            score: 0,
+            combo: 1,
+            health: 3,
+            survivalTime: 0,
+            spawnTimer: 0,
+            nextSpawnTime: 100,
+            difficulty: 1,
+
+            // Input state
+            keys: {
+                jump: false,
+                slash: false
+            }
+        };
+
+        // ==================== NINJA PLAYER ====================
+        const ninja = {
+            x: 80,
+            y: CONFIG.GROUND_Y,
+            width: 24,
+            height: 32,
+            velocityY: 0,
+            isJumping: false,
+            isSlashing: false,
+            slashTimer: 0,
+            slashCooldown: 0,
+            invincible: 0,
+            animFrame: 0,
+            animTimer: 0
+        };
+
+        // ==================== ENTITIES ====================
+        let robots = [];
+        let particles = [];
+        let scorePopups = [];
+
+        // ==================== PARALLAX BACKGROUND ====================
+        const background = {
+            mountains: [
+                { x: 0, width: 200, height: 60 },
+                { x: 180, width: 150, height: 45 },
+                { x: 320, width: 180, height: 55 },
+                { x: 500, width: 160, height: 50 }
+            ],
+            buildings: [
+                { x: 0, width: 60, height: 80 },
+                { x: 70, width: 45, height: 60 },
+                { x: 130, width: 70, height: 90 },
+                { x: 210, width: 50, height: 70 },
+                { x: 280, width: 65, height: 85 },
+                { x: 360, width: 55, height: 65 },
+                { x: 430, width: 75, height: 95 }
+            ],
+            groundOffset: 0
+        };
+
+        // ==================== INITIALIZATION ====================
+        function init() {
+            game.canvas = document.getElementById('gameCanvas');
+            game.ctx = game.canvas.getContext('2d');
+
+            // Set canvas size
+            game.canvas.width = CONFIG.BASE_WIDTH;
+            game.canvas.height = CONFIG.BASE_HEIGHT;
+
+            // Scale canvas display
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // Setup input
+            setupInput();
+
+            // Start game
+            resetGame();
+            game.running = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            const maxWidth = window.innerWidth - 20;
+            const maxHeight = window.innerHeight - 20;
+
+            let scale = Math.min(
+                maxWidth / CONFIG.BASE_WIDTH,
+                maxHeight / CONFIG.BASE_HEIGHT
+            );
+
+            // Round down to nearest integer for crisp pixels
+            scale = Math.max(1, Math.floor(scale));
+
+            game.canvas.style.width = (CONFIG.BASE_WIDTH * scale) + 'px';
+            game.canvas.style.height = (CONFIG.BASE_HEIGHT * scale) + 'px';
+        }
+
+        function resetGame() {
+            game.score = 0;
+            game.combo = 1;
+            game.health = 3;
+            game.survivalTime = 0;
+            game.spawnTimer = 0;
+            game.nextSpawnTime = 300; // 5 seconds before first robot
+            game.difficulty = 1;
+            game.gameOver = false;
+
+            ninja.y = CONFIG.GROUND_Y;
+            ninja.velocityY = 0;
+            ninja.isJumping = false;
+            ninja.isSlashing = false;
+            ninja.slashTimer = 0;
+            ninja.slashCooldown = 0;
+            ninja.invincible = 60; // Brief invincibility at start
+
+            robots = [];
+            particles = [];
+            scorePopups = [];
+        }
+
+        // ==================== INPUT HANDLING ====================
+        function setupInput() {
+            // Keyboard
+            document.addEventListener('keydown', (e) => {
+                // Handle restart first
+                if (game.gameOver) {
+                    if (e.code === 'Space' || e.code === 'Enter') {
+                        e.preventDefault();
+                        resetGame();
+                    }
+                    return; // Don't process other inputs when game over
+                }
+
+                if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+                    e.preventDefault();
+                    game.keys.jump = true;
+                }
+                if (e.code === 'KeyS' || e.code === 'KeyD' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                    e.preventDefault();
+                    game.keys.slash = true;
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+                    game.keys.jump = false;
+                }
+                if (e.code === 'KeyS' || e.code === 'KeyD' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                    game.keys.slash = false;
+                }
+            });
+
+            // Touch controls
+            const jumpBtn = document.getElementById('jumpBtn');
+            const slashBtn = document.getElementById('slashBtn');
+
+            jumpBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (game.gameOver) {
+                    resetGame();
+                    return;
+                }
+                game.keys.jump = true;
+            });
+            jumpBtn.addEventListener('touchend', () => game.keys.jump = false);
+
+            slashBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (game.gameOver) {
+                    resetGame();
+                    return;
+                }
+                game.keys.slash = true;
+            });
+            slashBtn.addEventListener('touchend', () => game.keys.slash = false);
+
+            // Click to restart when game over
+            game.canvas.addEventListener('click', () => {
+                if (game.gameOver) {
+                    resetGame();
+                }
+            });
+        }
+
+        // ==================== GAME LOOP ====================
+        let lastTime = 0;
+        function gameLoop(currentTime) {
+            requestAnimationFrame(gameLoop);
+
+            if (!game.running) return;
+
+            // Update
+            if (!game.gameOver) {
+                update();
+            }
+
+            // Render
+            render();
+        }
+
+        function update() {
+            // Survival time score
+            game.survivalTime++;
+            if (game.survivalTime % 60 === 0) {
+                game.score += 1;
+            }
+
+            // Increase difficulty over time
+            game.difficulty = 1 + Math.floor(game.survivalTime / 600) * 0.2;
+
+            // Update ninja
+            updateNinja();
+
+            // Update robots
+            updateRobots();
+
+            // Update particles
+            updateParticles();
+
+            // Update score popups
+            updateScorePopups();
+
+            // Spawn robots
+            spawnRobots();
+
+            // Check collisions
+            checkCollisions();
+
+            // Update background
+            updateBackground();
+        }
+
+        // ==================== NINJA UPDATE ====================
+        function updateNinja() {
+            // Animation
+            ninja.animTimer++;
+            if (ninja.animTimer >= 6) {
+                ninja.animTimer = 0;
+                ninja.animFrame = (ninja.animFrame + 1) % 4;
+            }
+
+            // Jump
+            if (game.keys.jump && !ninja.isJumping) {
+                ninja.isJumping = true;
+                ninja.velocityY = CONFIG.JUMP_FORCE;
+            }
+
+            // Apply gravity
+            if (ninja.isJumping) {
+                ninja.velocityY += CONFIG.GRAVITY;
+                ninja.y += ninja.velocityY;
+
+                // Land
+                if (ninja.y >= CONFIG.GROUND_Y) {
+                    ninja.y = CONFIG.GROUND_Y;
+                    ninja.isJumping = false;
+                    ninja.velocityY = 0;
+                }
+            }
+
+            // Slash
+            if (ninja.slashCooldown > 0) {
+                ninja.slashCooldown--;
+            }
+
+            if (game.keys.slash && !ninja.isSlashing && ninja.slashCooldown === 0) {
+                ninja.isSlashing = true;
+                ninja.slashTimer = CONFIG.SLASH_DURATION;
+            }
+
+            if (ninja.isSlashing) {
+                ninja.slashTimer--;
+                if (ninja.slashTimer <= 0) {
+                    ninja.isSlashing = false;
+                    ninja.slashCooldown = CONFIG.SLASH_COOLDOWN;
+                }
+            }
+
+            // Invincibility
+            if (ninja.invincible > 0) {
+                ninja.invincible--;
+            }
+        }
+
+        // ==================== ROBOT SPAWNING & UPDATE ====================
+        function spawnRobots() {
+            game.spawnTimer++;
+
+            if (game.spawnTimer >= game.nextSpawnTime) {
+                game.spawnTimer = 0;
+
+                // Decrease spawn interval as difficulty increases
+                const minInterval = Math.max(30, CONFIG.MIN_SPAWN_INTERVAL - game.difficulty * 10);
+                const maxInterval = Math.max(60, CONFIG.MAX_SPAWN_INTERVAL - game.difficulty * 20);
+                game.nextSpawnTime = minInterval + Math.random() * (maxInterval - minInterval);
+
+                // Spawn robot
+                const isTall = Math.random() < 0.3 + game.difficulty * 0.1;
+                robots.push({
+                    x: CONFIG.BASE_WIDTH + 20,
+                    y: CONFIG.GROUND_Y,
+                    width: isTall ? 28 : 24,
+                    height: isTall ? 40 : 28,
+                    isTall: isTall,
+                    animFrame: 0,
+                    animTimer: 0,
+                    jumped: false  // Track if player jumped over this robot
+                });
+            }
+        }
+
+        function updateRobots() {
+            for (let i = robots.length - 1; i >= 0; i--) {
+                const robot = robots[i];
+
+                // Move
+                robot.x -= CONFIG.ROBOT_SPEED + CONFIG.SCROLL_SPEED * 0.5;
+
+                // Animate
+                robot.animTimer++;
+                if (robot.animTimer >= 8) {
+                    robot.animTimer = 0;
+                    robot.animFrame = (robot.animFrame + 1) % 4;
+                }
+
+                // Remove if off screen
+                if (robot.x < -robot.width) {
+                    robots.splice(i, 1);
+                }
+            }
+        }
+
+        // ==================== COLLISION DETECTION ====================
+        function checkCollisions() {
+            const ninjaBox = {
+                x: ninja.x - ninja.width / 2,
+                y: ninja.y - ninja.height,
+                width: ninja.width,
+                height: ninja.height
+            };
+
+            // Slash hitbox (extends in front of ninja)
+            const slashBox = ninja.isSlashing ? {
+                x: ninja.x + ninja.width / 2 - 5,
+                y: ninja.y - ninja.height + 5,
+                width: 30,
+                height: ninja.height - 10
+            } : null;
+
+            for (let i = robots.length - 1; i >= 0; i--) {
+                const robot = robots[i];
+                const robotBox = {
+                    x: robot.x - robot.width / 2,
+                    y: robot.y - robot.height,
+                    width: robot.width,
+                    height: robot.height
+                };
+
+                // Check if ninja jumped over robot
+                if (!robot.jumped && ninja.isJumping &&
+                    ninja.x > robot.x - 10 && ninja.x < robot.x + 10 &&
+                    ninja.y - ninja.height < robot.y - robot.height) {
+                    robot.jumped = true;
+                    addScore(10, robot.x, robot.y - robot.height);
+                }
+
+                // Check slash collision
+                if (slashBox && boxCollision(slashBox, robotBox)) {
+                    // Destroy robot
+                    destroyRobot(robot, i);
+                    addScore(25, robot.x, robot.y - robot.height);
+                    continue;
+                }
+
+                // Check body collision
+                if (ninja.invincible === 0 && boxCollision(ninjaBox, robotBox)) {
+                    takeDamage();
+                }
+            }
+        }
+
+        function boxCollision(a, b) {
+            return a.x < b.x + b.width &&
+                   a.x + a.width > b.x &&
+                   a.y < b.y + b.height &&
+                   a.y + a.height > b.y;
+        }
+
+        function destroyRobot(robot, index) {
+            // Create explosion particles
+            for (let i = 0; i < 12; i++) {
+                particles.push({
+                    x: robot.x,
+                    y: robot.y - robot.height / 2,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8 - 2,
+                    size: 3 + Math.random() * 4,
+                    color: Math.random() < 0.5 ? CONFIG.COLORS.ROBOT_ACCENT : CONFIG.COLORS.ROBOT_BODY,
+                    life: 30
+                });
+            }
+
+            robots.splice(index, 1);
+        }
+
+        function takeDamage() {
+            game.health--;
+            ninja.invincible = CONFIG.INVINCIBILITY;
+            game.combo = 1;
+
+            // Screen shake effect (simple version - just particles)
+            for (let i = 0; i < 5; i++) {
+                particles.push({
+                    x: ninja.x,
+                    y: ninja.y - ninja.height / 2,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    size: 4,
+                    color: CONFIG.COLORS.HEALTH,
+                    life: 20
+                });
+            }
+
+            if (game.health <= 0) {
+                game.gameOver = true;
+            }
+        }
+
+        function addScore(points, x, y) {
+            const actualPoints = points * game.combo;
+            game.score += actualPoints;
+
+            // Increase combo
+            game.combo = Math.min(4, game.combo + 0.5);
+            if (game.combo > Math.floor(game.combo)) {
+                game.combo = Math.floor(game.combo);
+            } else {
+                game.combo = Math.min(4, game.combo + 1);
+            }
+            game.combo = Math.min(4, Math.floor(game.combo * 2) / 2 + 0.5);
+            game.combo = Math.min(4, game.combo);
+
+            // Simpler combo logic
+            game.combo = Math.min(4, Math.ceil(game.combo));
+
+            scorePopups.push({
+                x: x,
+                y: y,
+                text: '+' + actualPoints,
+                life: 40,
+                vy: -1
+            });
+        }
+
+        // ==================== PARTICLES & EFFECTS ====================
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.3; // gravity
+                p.life--;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function updateScorePopups() {
+            for (let i = scorePopups.length - 1; i >= 0; i--) {
+                const popup = scorePopups[i];
+                popup.y += popup.vy;
+                popup.life--;
+
+                if (popup.life <= 0) {
+                    scorePopups.splice(i, 1);
+                }
+            }
+        }
+
+        // ==================== BACKGROUND ====================
+        function updateBackground() {
+            // Move ground
+            background.groundOffset -= CONFIG.SCROLL_SPEED;
+            if (background.groundOffset <= -32) {
+                background.groundOffset += 32;
+            }
+
+            // Move mountains (slow)
+            for (const m of background.mountains) {
+                m.x -= CONFIG.SCROLL_SPEED * 0.2;
+                if (m.x + m.width < 0) {
+                    m.x = CONFIG.BASE_WIDTH + Math.random() * 100;
+                }
+            }
+
+            // Move buildings (medium)
+            for (const b of background.buildings) {
+                b.x -= CONFIG.SCROLL_SPEED * 0.5;
+                if (b.x + b.width < 0) {
+                    b.x = CONFIG.BASE_WIDTH + Math.random() * 50;
+                    b.height = 50 + Math.random() * 50;
+                }
+            }
+        }
+
+        // ==================== RENDERING ====================
+        function render() {
+            const ctx = game.ctx;
+
+            // Clear
+            ctx.fillStyle = CONFIG.COLORS.SKY;
+            ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
+
+            // Draw background
+            drawBackground();
+
+            // Draw ground
+            drawGround();
+
+            // Draw robots
+            for (const robot of robots) {
+                drawRobot(robot);
+            }
+
+            // Draw ninja
+            drawNinja();
+
+            // Draw particles
+            drawParticles();
+
+            // Draw score popups
+            drawScorePopups();
+
+            // Draw UI
+            drawUI();
+
+            // Draw game over
+            if (game.gameOver) {
+                drawGameOver();
+            }
+        }
+
+        function drawBackground() {
+            const ctx = game.ctx;
+
+            // Mountains
+            ctx.fillStyle = CONFIG.COLORS.MOUNTAINS;
+            for (const m of background.mountains) {
+                ctx.beginPath();
+                ctx.moveTo(m.x, CONFIG.GROUND_Y);
+                ctx.lineTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height);
+                ctx.lineTo(m.x + m.width, CONFIG.GROUND_Y);
+                ctx.fill();
+            }
+
+            // Buildings
+            ctx.fillStyle = CONFIG.COLORS.BUILDINGS;
+            for (const b of background.buildings) {
+                ctx.fillRect(b.x, CONFIG.GROUND_Y - b.height, b.width, b.height);
+
+                // Windows
+                ctx.fillStyle = '#ffd700';
+                const windowSize = 4;
+                const windowGap = 8;
+                for (let wy = CONFIG.GROUND_Y - b.height + 8; wy < CONFIG.GROUND_Y - 10; wy += windowGap) {
+                    for (let wx = b.x + 6; wx < b.x + b.width - 6; wx += windowGap) {
+                        if (Math.random() > 0.3) {
+                            ctx.fillRect(wx, wy, windowSize, windowSize);
+                        }
+                    }
+                }
+                ctx.fillStyle = CONFIG.COLORS.BUILDINGS;
+            }
+        }
+
+        function drawGround() {
+            const ctx = game.ctx;
+
+            // Ground fill
+            ctx.fillStyle = CONFIG.COLORS.GROUND;
+            ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT - CONFIG.GROUND_Y);
+
+            // Ground top line
+            ctx.fillStyle = CONFIG.COLORS.GROUND_TOP;
+            ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, 4);
+
+            // Ground pattern (scrolling)
+            ctx.fillStyle = CONFIG.COLORS.GROUND_TOP;
+            for (let x = background.groundOffset; x < CONFIG.BASE_WIDTH; x += 32) {
+                ctx.fillRect(x, CONFIG.GROUND_Y + 12, 16, 4);
+                ctx.fillRect(x + 8, CONFIG.GROUND_Y + 24, 16, 4);
+            }
+        }
+
+        function drawNinja() {
+            const ctx = game.ctx;
+            const x = ninja.x;
+            const y = ninja.y;
+
+            // Skip drawing every other frame when invincible (flashing)
+            if (ninja.invincible > 0 && Math.floor(ninja.invincible / 4) % 2 === 0) {
+                return;
+            }
+
+            ctx.save();
+
+            // Body
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+
+            // Determine pose
+            let bobY = 0;
+            if (!ninja.isJumping) {
+                bobY = Math.sin(ninja.animFrame * Math.PI / 2) * 2;
+            }
+
+            // Head
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 8, y - 28 + bobY, 16, 12);
+
+            // Headband
+            ctx.fillStyle = CONFIG.COLORS.HEALTH;
+            ctx.fillRect(x - 9, y - 24 + bobY, 18, 3);
+
+            // Eye
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x + 2, y - 26 + bobY, 4, 3);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(x + 4, y - 26 + bobY, 2, 3);
+
+            // Body
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 10, y - 16 + bobY, 20, 16);
+
+            // Belt
+            ctx.fillStyle = CONFIG.COLORS.NINJA_ACCENT;
+            ctx.fillRect(x - 10, y - 8 + bobY, 20, 3);
+
+            // Legs (animated)
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            if (ninja.isJumping) {
+                // Tucked legs
+                ctx.fillRect(x - 8, y - 4, 6, 4);
+                ctx.fillRect(x + 2, y - 4, 6, 4);
+            } else {
+                // Running animation
+                const legOffset = Math.sin(ninja.animFrame * Math.PI / 2) * 4;
+                ctx.fillRect(x - 8, y - 4, 6, 4);
+                ctx.fillRect(x + 2, y - 4, 6, 4);
+                // Feet
+                ctx.fillRect(x - 10 + legOffset, y - 2, 6, 2);
+                ctx.fillRect(x + 4 - legOffset, y - 2, 6, 2);
+            }
+
+            // Arms
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            if (ninja.isSlashing) {
+                // Slash pose - arm extended
+                ctx.fillRect(x + 8, y - 16 + bobY, 20, 6);
+
+                // Sword
+                ctx.fillStyle = '#c0c0c0';
+                ctx.fillRect(x + 26, y - 20 + bobY, 4, 14);
+                ctx.fillStyle = '#ffd700';
+                ctx.fillRect(x + 26, y - 12 + bobY, 4, 4);
+
+                // Slash effect
+                ctx.fillStyle = CONFIG.COLORS.SLASH;
+                ctx.globalAlpha = 0.7;
+                const slashProgress = 1 - ninja.slashTimer / CONFIG.SLASH_DURATION;
+                ctx.beginPath();
+                ctx.arc(x + 30, y - 14 + bobY, 15 + slashProgress * 10, -0.5, 0.5);
+                ctx.lineTo(x + 30, y - 14 + bobY);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            } else {
+                // Normal arms
+                ctx.fillRect(x - 14, y - 14 + bobY, 6, 4);
+                ctx.fillRect(x + 8, y - 14 + bobY, 6, 4);
+            }
+
+            ctx.restore();
+        }
+
+        function drawRobot(robot) {
+            const ctx = game.ctx;
+            const x = robot.x;
+            const y = robot.y;
+            const isTall = robot.isTall;
+
+            ctx.save();
+
+            const bobY = Math.sin(robot.animFrame * Math.PI / 2) * 2;
+
+            // Body
+            ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
+            if (isTall) {
+                ctx.fillRect(x - 12, y - 36 + bobY, 24, 32);
+                // Head
+                ctx.fillRect(x - 10, y - 40 + bobY, 20, 8);
+            } else {
+                ctx.fillRect(x - 10, y - 24 + bobY, 20, 20);
+                // Head
+                ctx.fillRect(x - 8, y - 28 + bobY, 16, 6);
+            }
+
+            // Eyes
+            ctx.fillStyle = CONFIG.COLORS.ROBOT_EYES;
+            const eyeY = isTall ? y - 36 + bobY : y - 24 + bobY;
+            ctx.fillRect(x - 6, eyeY, 4, 4);
+            ctx.fillRect(x + 2, eyeY, 4, 4);
+
+            // Antenna
+            ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+            const antennaY = isTall ? y - 40 + bobY : y - 28 + bobY;
+            ctx.fillRect(x - 1, antennaY - 6, 2, 6);
+            ctx.fillRect(x - 3, antennaY - 8, 6, 3);
+
+            // Legs
+            ctx.fillStyle = CONFIG.COLORS.ROBOT_BODY;
+            const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 3;
+            ctx.fillRect(x - 8 - legOffset, y - 6, 6, 6);
+            ctx.fillRect(x + 2 + legOffset, y - 6, 6, 6);
+
+            // Feet
+            ctx.fillStyle = CONFIG.COLORS.ROBOT_ACCENT;
+            ctx.fillRect(x - 10 - legOffset, y - 2, 8, 2);
+            ctx.fillRect(x + 2 + legOffset, y - 2, 8, 2);
+
+            ctx.restore();
+        }
+
+        function drawParticles() {
+            const ctx = game.ctx;
+
+            for (const p of particles) {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 30;
+                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function drawScorePopups() {
+            const ctx = game.ctx;
+
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'center';
+
+            for (const popup of scorePopups) {
+                ctx.fillStyle = CONFIG.COLORS.SLASH;
+                ctx.globalAlpha = popup.life / 40;
+                ctx.fillText(popup.text, popup.x, popup.y);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function drawUI() {
+            const ctx = game.ctx;
+
+            // Score
+            ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('SCORE: ' + String(game.score).padStart(6, '0'), 10, 20);
+
+            // Combo
+            if (game.combo > 1) {
+                ctx.fillStyle = CONFIG.COLORS.SLASH;
+                ctx.fillText(game.combo + 'x COMBO', 10, 34);
+            }
+
+            // Health (ninja stars)
+            ctx.textAlign = 'right';
+            ctx.fillStyle = CONFIG.COLORS.HEALTH;
+            for (let i = 0; i < game.health; i++) {
+                drawStar(CONFIG.BASE_WIDTH - 20 - i * 18, 14, 6);
+            }
+        }
+
+        function drawStar(cx, cy, r) {
+            const ctx = game.ctx;
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 4 * Math.PI / 5) - Math.PI / 2;
+                const x = cx + Math.cos(angle) * r;
+                const y = cy + Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawGameOver() {
+            const ctx = game.ctx;
+
+            // Darken background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
+
+            // Game Over text
+            ctx.fillStyle = CONFIG.COLORS.HEALTH;
+            ctx.font = 'bold 24px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 - 20);
+
+            // Final score
+            ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+            ctx.font = 'bold 14px monospace';
+            ctx.fillText('FINAL SCORE: ' + game.score, CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 10);
+
+            // Restart prompt
+            ctx.font = '10px monospace';
+            ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 35);
+        }
+
+        // ==================== START GAME ====================
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
