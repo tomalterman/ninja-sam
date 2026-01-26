@@ -192,8 +192,8 @@
             GROUND_Y: 170,
 
             // Game speed
-            SCROLL_SPEED: 1,
-            ROBOT_SPEED: 0.8,
+            SCROLL_SPEED: 2,
+            ROBOT_SPEED: 1.6,
 
             // Timing (in frames at 60fps)
             JUMP_DURATION: 36,      // ~0.6 seconds
@@ -1216,7 +1216,8 @@
             }
 
             // Buildings with details
-            for (const b of background.buildings) {
+            for (let bi = 0; bi < background.buildings.length; bi++) {
+                const b = background.buildings[bi];
                 // Building body
                 ctx.fillStyle = b.color;
                 ctx.fillRect(b.x, CONFIG.GROUND_Y - b.height, b.width, b.height);
@@ -1233,23 +1234,38 @@
                 ctx.fillStyle = '#333';
                 ctx.fillRect(b.x, CONFIG.GROUND_Y - b.height, b.width, 3);
 
-                // Windows (simplified for performance)
+                // Windows (stable pattern based on relative position within building)
                 const windowSize = 4;
                 const windowGap = 10;
+                let windowIndex = 0;
                 for (let wy = CONFIG.GROUND_Y - b.height + 10; wy < CONFIG.GROUND_Y - 10; wy += windowGap) {
                     for (let wx = b.x + 6; wx < b.x + b.width - 6; wx += windowGap) {
-                        const isLit = ((wx * 7 + wy * 13) % 10) > 4;
+                        // Use building index and window index for stable lighting pattern
+                        const isLit = ((bi * 17 + windowIndex * 7) % 10) > 4;
                         ctx.fillStyle = isLit ? '#ffd700' : '#1a1a4e';
                         ctx.fillRect(wx, wy, windowSize, windowSize);
+                        windowIndex++;
                     }
                 }
 
-                // Neon signs on some buildings (simplified)
+                // Neon billboard signs above buildings
                 if (b.hasSign && b.height > 70) {
-                    const signY = CONFIG.GROUND_Y - b.height + 20;
-                    const signColor = ['#ff00ff', '#00ffff', '#ff6600'][Math.floor(b.x / 100) % 3];
+                    const signY = CONFIG.GROUND_Y - b.height - 18; // Above the roof
+                    const signColor = ['#ff00ff', '#00ffff', '#ff6600'][bi % 3];
+                    // Billboard pole
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(b.x + b.width / 2 - 2, CONFIG.GROUND_Y - b.height - 12, 4, 12);
+                    // Billboard background
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(b.x + 4, signY - 2, b.width - 8, 14);
+                    // Neon sign glow
                     ctx.fillStyle = signColor;
-                    ctx.fillRect(b.x + 8, signY, b.width - 16, 6);
+                    ctx.fillRect(b.x + 6, signY, b.width - 12, 10);
+                    // Inner glow
+                    ctx.fillStyle = '#ffffff';
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillRect(b.x + 8, signY + 2, b.width - 16, 6);
+                    ctx.globalAlpha = 1;
                 }
             }
         }
