@@ -632,16 +632,12 @@
                 game.score += 1;
             }
 
-            // Increase difficulty over time (accelerates after first minute)
+            // Increase difficulty noticeably every minute
             const oneMinute = 3600; // 60 seconds * 60 fps
-            if (game.survivalTime < oneMinute) {
-                // First minute: gradual ramp up
-                game.difficulty = 1 + (game.survivalTime / oneMinute) * 0.5;
-            } else {
-                // After first minute: accelerate faster
-                const extraTime = game.survivalTime - oneMinute;
-                game.difficulty = 1.5 + (extraTime / 300) * 0.5; // 5x faster scaling
-            }
+            const minutesPassed = Math.floor(game.survivalTime / oneMinute);
+            const minuteProgress = (game.survivalTime % oneMinute) / oneMinute;
+            // Each minute adds 0.5 to difficulty (noticeable jump at minute boundaries)
+            game.difficulty = 1 + minutesPassed * 0.5 + minuteProgress * 0.3;
 
             // Update ninja
             updateNinja(dt);
@@ -768,8 +764,7 @@
                     height: isTall ? 40 : 28,
                     isTall: isTall,
                     animFrame: 0,
-                    animTimer: 0,
-                    jumped: false  // Track if player jumped over this robot
+                    animTimer: 0
                 });
             }
         }
@@ -778,8 +773,9 @@
             for (let i = robots.length - 1; i >= 0; i--) {
                 const robot = robots[i];
 
-                // Move
-                robot.x -= (CONFIG.ROBOT_SPEED + CONFIG.SCROLL_SPEED * 0.5) * dt;
+                // Move (speed increases with difficulty)
+                const speedMultiplier = 1 + (game.difficulty - 1) * 0.4;
+                robot.x -= (CONFIG.ROBOT_SPEED + CONFIG.SCROLL_SPEED * 0.5) * speedMultiplier * dt;
 
                 // Animate
                 robot.animTimer += dt;
@@ -904,14 +900,6 @@
                     // Bounce up
                     ninja.velocityY = CONFIG.JUMP_FORCE * 0.6;
                     continue;
-                }
-
-                // Check if ninja jumped over robot
-                if (!robot.jumped && ninja.isJumping &&
-                    ninja.x > robot.x - 10 && ninja.x < robot.x + 10 &&
-                    ninja.y - ninja.height < robot.y - robot.height) {
-                    robot.jumped = true;
-                    addScore(10, robot.x, robot.y - robot.height);
                 }
 
                 // Check slash collision
@@ -1753,38 +1741,58 @@
                 ctx.fillRect(x + 12, y - 16 + bobY, 3, 6);
                 ctx.fillRect(x + 16, y - 16 + bobY, 3, 6);
 
-                // === ELECTRICITY SHIELD ===
+                // === ELECTRICITY SHIELD (Roman style, held facing ninja) ===
                 const shieldTime = Date.now() / 50;
-                const shieldFlicker = Math.sin(shieldTime * 3) * 0.3 + 0.5;
+                const shieldFlicker = Math.sin(shieldTime * 3) * 0.3 + 0.7;
 
-                // Shield glow outline
-                ctx.strokeStyle = `rgba(0, 255, 255, ${shieldFlicker})`;
+                // Shield position - held on left side facing the ninja
+                const shieldX = x - 18;
+                const shieldY = y - 22 + bobY;
+
+                // Robot arm holding shield
+                ctx.fillStyle = '#666';
+                ctx.fillRect(x - 14, y - 26 + bobY, 8, 4);
+
+                // Shield body (tall oval, metallic with electric glow)
+                ctx.fillStyle = '#334';
+                ctx.beginPath();
+                ctx.ellipse(shieldX, shieldY, 8, 20, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Shield rim
+                ctx.strokeStyle = '#556';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.ellipse(x, y - 20 + bobY, 22, 28, 0, 0, Math.PI * 2);
+                ctx.ellipse(shieldX, shieldY, 8, 20, 0, 0, Math.PI * 2);
                 ctx.stroke();
 
-                // Electric arcs (animated)
-                ctx.strokeStyle = `rgba(255, 255, 255, ${shieldFlicker * 0.8})`;
-                ctx.lineWidth = 1;
+                // Electric glow on shield surface
+                ctx.fillStyle = `rgba(0, 255, 255, ${shieldFlicker * 0.4})`;
+                ctx.beginPath();
+                ctx.ellipse(shieldX, shieldY, 6, 17, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Electric arcs dancing on shield
+                ctx.strokeStyle = `rgba(0, 255, 255, ${shieldFlicker})`;
+                ctx.lineWidth = 1.5;
                 for (let arc = 0; arc < 3; arc++) {
-                    const arcAngle = shieldTime + arc * 2.1;
-                    const arcX = x + Math.cos(arcAngle) * 18;
-                    const arcY = y - 20 + bobY + Math.sin(arcAngle) * 24;
-                    const arcX2 = x + Math.cos(arcAngle + 0.5) * 20;
-                    const arcY2 = y - 20 + bobY + Math.sin(arcAngle + 0.5) * 26;
+                    const arcOffset = shieldTime * 2 + arc * 2;
+                    const arcY1 = shieldY - 14 + (arc * 12);
+                    const arcY2 = arcY1 + 6;
                     ctx.beginPath();
-                    ctx.moveTo(arcX, arcY);
-                    ctx.lineTo(arcX + (Math.random() - 0.5) * 6, arcY + (Math.random() - 0.5) * 6);
-                    ctx.lineTo(arcX2, arcY2);
+                    ctx.moveTo(shieldX - 4, arcY1);
+                    ctx.lineTo(shieldX + Math.sin(arcOffset) * 3, arcY1 + 3);
+                    ctx.lineTo(shieldX + 4, arcY2);
                     ctx.stroke();
                 }
 
-                // Shield core glow
-                ctx.fillStyle = `rgba(0, 255, 255, ${shieldFlicker * 0.15})`;
+                // Bright electric core line
+                ctx.strokeStyle = `rgba(255, 255, 255, ${shieldFlicker * 0.8})`;
+                ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.ellipse(x, y - 20 + bobY, 20, 26, 0, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.moveTo(shieldX, shieldY - 15);
+                ctx.lineTo(shieldX, shieldY + 15);
+                ctx.stroke();
 
             } else {
                 // === SMALL SCOUT ROBOT ===
