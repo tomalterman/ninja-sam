@@ -246,6 +246,7 @@
             canvas: null,
             ctx: null,
             running: false,
+            showTitleScreen: true,
             gameOver: false,
             score: 0,
             combo: 1,
@@ -418,10 +419,15 @@
             // Load high scores
             loadHighScores();
 
-            // Start game
-            resetGame();
+            // Show title screen first
+            game.showTitleScreen = true;
             game.running = true;
             requestAnimationFrame(gameLoop);
+        }
+
+        function startGameFromTitle() {
+            game.showTitleScreen = false;
+            resetGame();
         }
 
         function resizeCanvas() {
@@ -480,6 +486,13 @@
         function setupInput() {
             // Keyboard
             document.addEventListener('keydown', (e) => {
+                // Handle title screen - any key starts game
+                if (game.showTitleScreen) {
+                    e.preventDefault();
+                    startGameFromTitle();
+                    return;
+                }
+
                 // Handle high score name entry
                 if (game.gameOver && game.enteringName) {
                     e.preventDefault();
@@ -530,6 +543,10 @@
 
             jumpBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                if (game.showTitleScreen) {
+                    startGameFromTitle();
+                    return;
+                }
                 if (game.gameOver && !game.enteringName) {
                     resetGame();
                     return;
@@ -540,6 +557,10 @@
 
             slashBtn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                if (game.showTitleScreen) {
+                    startGameFromTitle();
+                    return;
+                }
                 if (game.gameOver && !game.enteringName) {
                     resetGame();
                     return;
@@ -568,6 +589,12 @@
 
                 const canvasX = (clientX - rect.left) * scaleX;
                 const canvasY = (clientY - rect.top) * scaleY;
+
+                // Handle title screen - tap anywhere to start
+                if (game.showTitleScreen) {
+                    startGameFromTitle();
+                    return;
+                }
 
                 if (game.gameOver) {
                     if (game.enteringName) {
@@ -1150,6 +1177,12 @@
             // Draw ground
             drawGround();
 
+            // Title screen mode
+            if (game.showTitleScreen) {
+                drawTitleScreen();
+                return;
+            }
+
             // Draw robots
             for (const robot of robots) {
                 drawRobot(robot);
@@ -1179,6 +1212,260 @@
 
             // Draw debug overlay
             drawDebugOverlay();
+        }
+
+        function drawTitleScreen() {
+            const ctx = game.ctx;
+            const time = Date.now() / 1000;
+            const centerX = CONFIG.BASE_WIDTH / 2;
+
+            // === LIGHTNING BOLTS ON SIDES ===
+            const lightningTime = Date.now() / 100;
+
+            // Left lightning bolt
+            drawLightningBolt(ctx, 45, 30, 45, CONFIG.GROUND_Y - 10, lightningTime);
+            // Right lightning bolt
+            drawLightningBolt(ctx, CONFIG.BASE_WIDTH - 45, 30, CONFIG.BASE_WIDTH - 45, CONFIG.GROUND_Y - 10, lightningTime + 50);
+
+            // === SAM POSING ===
+            drawTitleNinja(ctx, centerX, CONFIG.GROUND_Y, time);
+
+            // === TITLE "NINJA SAM" ===
+            // Title shadow
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 32px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('NINJA SAM', centerX + 2, 42);
+
+            // Title gradient effect (red to orange)
+            ctx.fillStyle = CONFIG.COLORS.HEALTH;
+            ctx.fillText('NINJA SAM', centerX, 40);
+
+            // Title highlight
+            ctx.fillStyle = '#ff6b6b';
+            ctx.font = 'bold 32px monospace';
+            ctx.fillText('NINJA SAM', centerX - 1, 39);
+
+            // Subtitle
+            ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText('~ FIRE SWORD WARRIOR ~', centerX, 55);
+
+            // === TOP 3 HIGH SCORES ===
+            ctx.fillStyle = CONFIG.COLORS.SLASH;
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText('HIGH SCORES', centerX, 90);
+
+            ctx.font = '10px monospace';
+            for (let i = 0; i < 3; i++) {
+                const score = highScores[i];
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+                ctx.fillStyle = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : '#cd7f32';
+                ctx.fillText(`${i + 1}. ${score.name} - ${String(score.score).padStart(6, '0')}`, centerX, 105 + i * 12);
+            }
+
+            // === PRESS ANY KEY ===
+            const blink = Math.sin(time * 4) > 0;
+            if (blink) {
+                ctx.fillStyle = CONFIG.COLORS.UI_TEXT;
+                ctx.font = 'bold 10px monospace';
+                ctx.fillText('PRESS ANY KEY TO START', centerX, CONFIG.GROUND_Y + 20);
+            }
+        }
+
+        function drawLightningBolt(ctx, x1, y1, x2, y2, seed) {
+            const segments = 8;
+            const flash = Math.sin(seed * 0.3) > 0.7 ? 1 : 0.3;
+
+            ctx.strokeStyle = `rgba(0, 255, 255, ${flash})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+
+            for (let i = 1; i < segments; i++) {
+                const t = i / segments;
+                const midX = x1 + (x2 - x1) * t + Math.sin(seed + i * 2) * 15;
+                const midY = y1 + (y2 - y1) * t;
+                ctx.lineTo(midX, midY);
+            }
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+
+            // Inner bright line
+            ctx.strokeStyle = `rgba(255, 255, 255, ${flash * 0.8})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            for (let i = 1; i < segments; i++) {
+                const t = i / segments;
+                const midX = x1 + (x2 - x1) * t + Math.sin(seed + i * 2) * 15;
+                const midY = y1 + (y2 - y1) * t;
+                ctx.lineTo(midX, midY);
+            }
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+
+            // Ground impact glow
+            if (flash > 0.5) {
+                ctx.fillStyle = `rgba(0, 255, 255, ${flash * 0.5})`;
+                ctx.beginPath();
+                ctx.arc(x2, y2, 10, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawTitleNinja(ctx, x, y, time) {
+            const flameTimer = time * 12;
+            const bobY = Math.sin(time * 2) * 2;
+
+            // === RED BANDANA ===
+            ctx.fillStyle = CONFIG.COLORS.HEALTH;
+            ctx.fillRect(x - 8, y - 29 + bobY, 16, 4);
+            ctx.fillRect(x - 10, y - 28 + bobY, 3, 3);
+            // Flowing tails
+            const tailWave = Math.sin(flameTimer * 1.5) * 3;
+            const tailWave2 = Math.sin(flameTimer * 1.5 + 1) * 3;
+            ctx.fillRect(x - 14 - tailWave, y - 28 + bobY, 5, 2);
+            ctx.fillRect(x - 18 - tailWave2, y - 27 + bobY, 5, 2);
+            ctx.fillRect(x - 12 - tailWave, y - 30 + bobY, 4, 2);
+            ctx.fillRect(x - 16 - tailWave2, y - 29 + bobY, 4, 2);
+            ctx.fillStyle = '#c0392b';
+            ctx.fillRect(x - 8, y - 26 + bobY, 16, 1);
+
+            // === BLOND HAIR ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA_HAIR;
+            ctx.fillRect(x - 7, y - 33 + bobY, 14, 5);
+            ctx.fillRect(x - 8, y - 29 + bobY, 4, 3);
+            ctx.fillRect(x + 4, y - 29 + bobY, 4, 3);
+            ctx.fillRect(x - 5, y - 36 + bobY, 3, 4);
+            ctx.fillRect(x + 1, y - 37 + bobY, 3, 5);
+            ctx.fillRect(x + 5, y - 35 + bobY, 3, 3);
+            ctx.fillStyle = '#fff59d';
+            ctx.fillRect(x - 3, y - 35 + bobY, 3, 2);
+            ctx.fillRect(x + 2, y - 36 + bobY, 2, 2);
+            ctx.fillStyle = CONFIG.COLORS.NINJA_HAIR_DARK;
+            ctx.fillRect(x - 6, y - 30 + bobY, 3, 2);
+            ctx.fillRect(x + 4, y - 30 + bobY, 3, 2);
+
+            // === FACE ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+            ctx.fillRect(x - 6, y - 26 + bobY, 12, 10);
+            // Eyes - determined look
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x - 4, y - 24 + bobY, 4, 3);
+            ctx.fillRect(x + 1, y - 24 + bobY, 4, 3);
+            ctx.fillStyle = '#2196f3';
+            ctx.fillRect(x - 2, y - 24 + bobY, 2, 3);
+            ctx.fillRect(x + 3, y - 24 + bobY, 2, 3);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x - 3, y - 24 + bobY, 1, 1);
+            ctx.fillRect(x + 2, y - 24 + bobY, 1, 1);
+            // Confident smile
+            ctx.fillStyle = '#e57373';
+            ctx.fillRect(x - 2, y - 18 + bobY, 5, 1);
+            ctx.fillRect(x - 1, y - 17 + bobY, 3, 1);
+
+            // === MASK ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 7, y - 17 + bobY, 14, 3);
+
+            // === BODY ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 10, y - 14 + bobY, 20, 14);
+            ctx.fillStyle = CONFIG.COLORS.NINJA_ACCENT;
+            ctx.fillRect(x - 8, y - 12 + bobY, 4, 10);
+            ctx.fillRect(x + 4, y - 12 + bobY, 4, 10);
+            ctx.fillStyle = '#444';
+            ctx.fillRect(x - 1, y - 12 + bobY, 2, 8);
+
+            // === RED BELT ===
+            ctx.fillStyle = CONFIG.COLORS.HEALTH;
+            ctx.fillRect(x - 10, y - 4 + bobY, 20, 3);
+            ctx.fillStyle = '#ffeb3b';
+            ctx.fillRect(x - 2, y - 4 + bobY, 4, 3);
+
+            // === LEGS (power stance) ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 12, y - 2, 9, 6);
+            ctx.fillRect(x + 3, y - 2, 9, 6);
+            ctx.fillStyle = '#4a4a4a';
+            ctx.fillRect(x - 14, y + 2, 8, 3);
+            ctx.fillRect(x + 6, y + 2, 8, 3);
+
+            // === LEFT ARM (fist raised) ===
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(x - 16, y - 16 + bobY, 6, 8);
+            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+            ctx.fillRect(x - 16, y - 20 + bobY, 5, 5);
+
+            // === RIGHT ARM + SWORD (raised high) ===
+            const swordAngle = -1.2 + Math.sin(time * 1.5) * 0.1; // Sword raised, slight sway
+            const swordLength = 36;
+            const swordPivotX = x + 8;
+            const swordPivotY = y - 14 + bobY;
+
+            ctx.save();
+            ctx.translate(swordPivotX, swordPivotY);
+            ctx.rotate(swordAngle);
+
+            // Arm
+            ctx.fillStyle = CONFIG.COLORS.NINJA;
+            ctx.fillRect(-4, -3, 12, 6);
+            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+            ctx.fillRect(6, -2, 5, 5);
+
+            // Handle
+            ctx.fillStyle = '#5d4037';
+            ctx.fillRect(10, -2, 7, 5);
+            ctx.fillStyle = '#8b0000';
+            ctx.fillRect(11, -1, 2, 3);
+            ctx.fillRect(14, -1, 2, 3);
+            // Guard
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(8, -5, 3, 10);
+            ctx.fillStyle = '#ffab00';
+            ctx.fillRect(8, -1, 3, 3);
+
+            // Blade
+            ctx.fillStyle = '#b0bec5';
+            ctx.fillRect(17, -2, swordLength - 17, 5);
+            ctx.fillStyle = '#eceff1';
+            ctx.fillRect(17, -2, swordLength - 17, 2);
+            ctx.fillStyle = '#78909c';
+            ctx.fillRect(19, 0, swordLength - 21, 2);
+            // Tip
+            ctx.fillStyle = '#eceff1';
+            ctx.beginPath();
+            ctx.moveTo(swordLength - 2, -2);
+            ctx.lineTo(swordLength + 5, 1);
+            ctx.lineTo(swordLength - 2, 4);
+            ctx.fill();
+
+            // === EPIC FLAMES ===
+            const flicker = Math.sin(flameTimer * 2) * 2;
+            for (let i = 0; i < 5; i++) {
+                const flameX = 20 + i * 4;
+                const flameH = 5 + Math.sin(flameTimer * 3 + i) * 2;
+                // Outer flame
+                ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+                ctx.fillRect(flameX, -4 - flameH + flicker, 4, flameH);
+                ctx.fillRect(flameX, 4 - flicker, 4, flameH);
+                // Inner flame
+                ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+                ctx.fillRect(flameX + 1, -3 - flameH/2 + flicker, 2, flameH/2);
+                ctx.fillRect(flameX + 1, 3 - flicker, 2, flameH/2);
+            }
+
+            // Tip flame (extra big)
+            const tipFlameH = 8 + Math.sin(flameTimer * 4) * 3;
+            ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+            ctx.fillRect(swordLength - 3, -tipFlameH, 6, tipFlameH * 2);
+            ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+            ctx.fillRect(swordLength - 1, -tipFlameH/2, 4, tipFlameH);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(swordLength, -2, 2, 4);
+
+            ctx.restore();
         }
 
         function drawBackground() {
