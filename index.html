@@ -236,7 +236,9 @@
             frameTime: 0,
             slowFrameCount: 0,
             totalFrames: 0,
-            lastTime: 0
+            fps: 0,
+            fpsFrames: 0,
+            fpsLastTime: 0
         };
 
         // ==================== GAME STATE ====================
@@ -603,8 +605,15 @@
             if (DEBUG.showFps) {
                 DEBUG.frameTime = performance.now() - frameStart;
                 DEBUG.totalFrames++;
+                DEBUG.fpsFrames++;
                 if (DEBUG.frameTime > 16.67) {
                     DEBUG.slowFrameCount++;
+                }
+                // Calculate FPS every second
+                if (currentTime - DEBUG.fpsLastTime >= 1000) {
+                    DEBUG.fps = DEBUG.fpsFrames;
+                    DEBUG.fpsFrames = 0;
+                    DEBUG.fpsLastTime = currentTime;
                 }
             }
         }
@@ -1894,20 +1903,22 @@
             if (!DEBUG.showFps) return;
 
             const ctx = game.ctx;
-            const slowPercent = DEBUG.totalFrames > 0 ?
-                ((DEBUG.slowFrameCount / DEBUG.totalFrames) * 100).toFixed(1) : '0.0';
 
             // Background
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(5, CONFIG.BASE_HEIGHT - 40, 95, 35);
+            ctx.fillRect(5, CONFIG.BASE_HEIGHT - 35, 70, 30);
 
-            // Text
-            ctx.fillStyle = DEBUG.frameTime > 16.67 ? '#ff4444' : '#44ff44';
-            ctx.font = '8px monospace';
+            // FPS color: green if 55+, yellow if 40-55, red if <40
+            const fpsColor = DEBUG.fps >= 55 ? '#44ff44' : (DEBUG.fps >= 40 ? '#ffff44' : '#ff4444');
+
+            ctx.font = 'bold 10px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`Frame: ${DEBUG.frameTime.toFixed(1)}ms`, 10, CONFIG.BASE_HEIGHT - 28);
-            ctx.fillText(`Slow: ${DEBUG.slowFrameCount}/${DEBUG.totalFrames}`, 10, CONFIG.BASE_HEIGHT - 18);
-            ctx.fillText(`(${slowPercent}% > 16.7ms)`, 10, CONFIG.BASE_HEIGHT - 8);
+            ctx.fillStyle = fpsColor;
+            ctx.fillText(`FPS: ${DEBUG.fps}`, 10, CONFIG.BASE_HEIGHT - 20);
+
+            ctx.font = '8px monospace';
+            ctx.fillStyle = '#aaaaaa';
+            ctx.fillText(`${DEBUG.frameTime.toFixed(1)}ms/frame`, 10, CONFIG.BASE_HEIGHT - 9);
         }
 
         function drawGameOver() {
