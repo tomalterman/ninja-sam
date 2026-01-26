@@ -896,10 +896,11 @@
                 };
 
                 // Check stomp collision (ninja falling and feet hit robot head)
+                // This is the ONLY way to destroy tall shielded robots
                 if (ninja.isJumping && ninja.velocityY > 0 && boxCollision(feetBox, robotHeadBox)) {
                     // Squash the robot!
                     destroyRobot(robot, i, true);
-                    addScore(25, robot.x, robot.y - robot.height);
+                    addScore(robot.isTall ? 50 : 25, robot.x, robot.y - robot.height); // Bonus for tall robots
                     // Bounce up
                     ninja.velocityY = CONFIG.JUMP_FORCE * 0.6;
                     continue;
@@ -915,15 +916,48 @@
 
                 // Check slash collision
                 if (slashBox && boxCollision(slashBox, robotBox)) {
-                    // Destroy robot
-                    destroyRobot(robot, i);
-                    addScore(25, robot.x, robot.y - robot.height);
+                    if (robot.isTall) {
+                        // Tall robots have electricity shields - slashing zaps the ninja!
+                        if (ninja.invincible <= 0) {
+                            takeDamage();
+                            // Create electric zap particles
+                            for (let j = 0; j < 8; j++) {
+                                particles.push({
+                                    x: robot.x + (Math.random() - 0.5) * robot.width,
+                                    y: robot.y - robot.height / 2,
+                                    vx: (Math.random() - 0.5) * 12,
+                                    vy: (Math.random() - 0.5) * 12,
+                                    size: 2 + Math.random() * 3,
+                                    color: Math.random() < 0.5 ? '#00ffff' : '#ffffff',
+                                    life: 15
+                                });
+                            }
+                        }
+                    } else {
+                        // Small robots can be slashed
+                        destroyRobot(robot, i);
+                        addScore(25, robot.x, robot.y - robot.height);
+                    }
                     continue;
                 }
 
-                // Check body collision
-                if (ninja.invincible === 0 && boxCollision(ninjaBox, robotBox)) {
+                // Check body collision (shields zap on contact for tall robots)
+                if (ninja.invincible <= 0 && boxCollision(ninjaBox, robotBox)) {
                     takeDamage();
+                    // Extra zap effect for tall shielded robots
+                    if (robot.isTall) {
+                        for (let j = 0; j < 5; j++) {
+                            particles.push({
+                                x: ninja.x,
+                                y: ninja.y - ninja.height / 2,
+                                vx: (Math.random() - 0.5) * 10,
+                                vy: (Math.random() - 0.5) * 10,
+                                size: 2 + Math.random() * 2,
+                                color: '#00ffff',
+                                life: 12
+                            });
+                        }
+                    }
                 }
             }
 
@@ -1718,6 +1752,39 @@
                 ctx.fillRect(x - 15, y - 16 + bobY, 3, 6);
                 ctx.fillRect(x + 12, y - 16 + bobY, 3, 6);
                 ctx.fillRect(x + 16, y - 16 + bobY, 3, 6);
+
+                // === ELECTRICITY SHIELD ===
+                const shieldTime = Date.now() / 50;
+                const shieldFlicker = Math.sin(shieldTime * 3) * 0.3 + 0.5;
+
+                // Shield glow outline
+                ctx.strokeStyle = `rgba(0, 255, 255, ${shieldFlicker})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(x, y - 20 + bobY, 22, 28, 0, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Electric arcs (animated)
+                ctx.strokeStyle = `rgba(255, 255, 255, ${shieldFlicker * 0.8})`;
+                ctx.lineWidth = 1;
+                for (let arc = 0; arc < 3; arc++) {
+                    const arcAngle = shieldTime + arc * 2.1;
+                    const arcX = x + Math.cos(arcAngle) * 18;
+                    const arcY = y - 20 + bobY + Math.sin(arcAngle) * 24;
+                    const arcX2 = x + Math.cos(arcAngle + 0.5) * 20;
+                    const arcY2 = y - 20 + bobY + Math.sin(arcAngle + 0.5) * 26;
+                    ctx.beginPath();
+                    ctx.moveTo(arcX, arcY);
+                    ctx.lineTo(arcX + (Math.random() - 0.5) * 6, arcY + (Math.random() - 0.5) * 6);
+                    ctx.lineTo(arcX2, arcY2);
+                    ctx.stroke();
+                }
+
+                // Shield core glow
+                ctx.fillStyle = `rgba(0, 255, 255, ${shieldFlicker * 0.15})`;
+                ctx.beginPath();
+                ctx.ellipse(x, y - 20 + bobY, 20, 26, 0, 0, Math.PI * 2);
+                ctx.fill();
 
             } else {
                 // === SMALL SCOUT ROBOT ===
