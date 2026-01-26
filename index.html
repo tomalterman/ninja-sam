@@ -232,12 +232,11 @@
 
         // ==================== DEBUG CONFIG ====================
         const DEBUG = {
-            showFps: new URLSearchParams(window.location.search).has('debug') &&
-                     new URLSearchParams(window.location.search).get('debug').includes('fps'),
+            showFps: new URLSearchParams(window.location.search).get('debug')?.includes('fps') || false,
             frameTime: 0,
             slowFrameCount: 0,
-            avgFrameTime: 0,
-            frameTimeHistory: []
+            totalFrames: 0,
+            lastTime: 0
         };
 
         // ==================== GAME STATE ====================
@@ -585,9 +584,6 @@
 
         // ==================== GAME LOOP ====================
         let lastTime = 0;
-        const TARGET_FPS = 60;
-        const FRAME_TIME = 1000 / TARGET_FPS;
-
         function gameLoop(currentTime) {
             const frameStart = performance.now();
 
@@ -595,14 +591,9 @@
 
             if (!game.running) return;
 
-            // Calculate delta time (normalized to 60fps, capped to prevent spiral of death)
-            const rawDelta = lastTime ? (currentTime - lastTime) / FRAME_TIME : 1;
-            const deltaTime = Math.min(rawDelta, 3);
-            lastTime = currentTime;
-
             // Update
             if (!game.gameOver) {
-                update(deltaTime);
+                update();
             }
 
             // Render
@@ -610,23 +601,18 @@
 
             // Track frame timing for debug
             if (DEBUG.showFps) {
-                const frameTime = performance.now() - frameStart;
-                DEBUG.frameTime = frameTime;
-                DEBUG.frameTimeHistory.push(frameTime);
-                if (DEBUG.frameTimeHistory.length > 60) {
-                    DEBUG.frameTimeHistory.shift();
-                }
-                DEBUG.avgFrameTime = DEBUG.frameTimeHistory.reduce((a, b) => a + b, 0) / DEBUG.frameTimeHistory.length;
-                if (frameTime > 16.67) {
+                DEBUG.frameTime = performance.now() - frameStart;
+                DEBUG.totalFrames++;
+                if (DEBUG.frameTime > 16.67) {
                     DEBUG.slowFrameCount++;
                 }
             }
         }
 
-        function update(deltaTime) {
-            // Survival time score (accumulates fractional frames)
-            game.survivalTime += deltaTime;
-            if (Math.floor(game.survivalTime) % 60 === 0 && Math.floor(game.survivalTime) !== Math.floor(game.survivalTime - deltaTime)) {
+        function update() {
+            // Survival time score
+            game.survivalTime++;
+            if (game.survivalTime % 60 === 0) {
                 game.score += 1;
             }
 
@@ -634,23 +620,23 @@
             game.difficulty = 1 + Math.floor(game.survivalTime / 600) * 0.2;
 
             // Update ninja
-            updateNinja(deltaTime);
+            updateNinja();
 
             // Update robots
-            updateRobots(deltaTime);
+            updateRobots();
 
             // Update particles
-            updateParticles(deltaTime);
+            updateParticles();
 
             // Update score popups
-            updateScorePopups(deltaTime);
+            updateScorePopups();
 
             // Spawn robots and fruit
-            spawnRobots(deltaTime);
-            spawnFruit(deltaTime);
+            spawnRobots();
+            spawnFruit();
 
             // Update fruit
-            updateFruit(deltaTime);
+            updateFruit();
 
             // Check collisions (not during death animation)
             if (!ninja.isDead) {
@@ -658,14 +644,14 @@
             }
 
             // Update background
-            updateBackground(deltaTime);
+            updateBackground();
         }
 
         // ==================== NINJA UPDATE ====================
-        function updateNinja(deltaTime) {
+        function updateNinja() {
             // Death animation - only update death timer
             if (ninja.isDead) {
-                ninja.deathAnim -= deltaTime;
+                ninja.deathAnim--;
                 if (ninja.deathAnim <= 0) {
                     game.gameOver = true;
                     game.newHighScoreRank = checkHighScore(game.score);
@@ -678,7 +664,7 @@
             }
 
             // Animation
-            ninja.animTimer += deltaTime;
+            ninja.animTimer++;
             if (ninja.animTimer >= 6) {
                 ninja.animTimer = 0;
                 ninja.animFrame = (ninja.animFrame + 1) % 4;
@@ -696,8 +682,8 @@
                 const isNearPeak = Math.abs(ninja.velocityY) < 3;
                 const gravity = isNearPeak ? CONFIG.FLOAT_GRAVITY : CONFIG.GRAVITY;
 
-                ninja.velocityY += gravity * deltaTime;
-                ninja.y += ninja.velocityY * deltaTime;
+                ninja.velocityY += gravity;
+                ninja.y += ninja.velocityY;
 
                 // Land
                 if (ninja.y >= CONFIG.GROUND_Y) {
@@ -709,17 +695,17 @@
 
             // Slash
             if (ninja.slashCooldown > 0) {
-                ninja.slashCooldown -= deltaTime;
+                ninja.slashCooldown--;
             }
 
-            if (game.keys.slash && !game.keys.slashUsed && !ninja.isSlashing && ninja.slashCooldown <= 0) {
+            if (game.keys.slash && !game.keys.slashUsed && !ninja.isSlashing && ninja.slashCooldown === 0) {
                 ninja.isSlashing = true;
                 ninja.slashTimer = CONFIG.SLASH_DURATION;
                 game.keys.slashUsed = true;  // Must release key before slashing again
             }
 
             if (ninja.isSlashing) {
-                ninja.slashTimer -= deltaTime;
+                ninja.slashTimer--;
                 if (ninja.slashTimer <= 0) {
                     ninja.isSlashing = false;
                     ninja.slashCooldown = CONFIG.SLASH_COOLDOWN;
@@ -728,18 +714,18 @@
 
             // Invincibility
             if (ninja.invincible > 0) {
-                ninja.invincible -= deltaTime;
+                ninja.invincible--;
             }
 
             // Hit reaction timer
             if (ninja.hitReaction > 0) {
-                ninja.hitReaction -= deltaTime;
+                ninja.hitReaction--;
             }
         }
 
         // ==================== ROBOT SPAWNING & UPDATE ====================
-        function spawnRobots(deltaTime) {
-            game.spawnTimer += deltaTime;
+        function spawnRobots() {
+            game.spawnTimer++;
 
             if (game.spawnTimer >= game.nextSpawnTime) {
                 game.spawnTimer = 0;
@@ -764,15 +750,15 @@
             }
         }
 
-        function updateRobots(deltaTime) {
+        function updateRobots() {
             for (let i = robots.length - 1; i >= 0; i--) {
                 const robot = robots[i];
 
                 // Move
-                robot.x -= (CONFIG.ROBOT_SPEED + CONFIG.SCROLL_SPEED * 0.5) * deltaTime;
+                robot.x -= CONFIG.ROBOT_SPEED + CONFIG.SCROLL_SPEED * 0.5;
 
                 // Animate
-                robot.animTimer += deltaTime;
+                robot.animTimer++;
                 if (robot.animTimer >= 8) {
                     robot.animTimer = 0;
                     robot.animFrame = (robot.animFrame + 1) % 4;
@@ -789,8 +775,8 @@
         let fruitSpawnTimer = 0;
         let nextFruitSpawnTime = 200;
 
-        function spawnFruit(deltaTime) {
-            fruitSpawnTimer += deltaTime;
+        function spawnFruit() {
+            fruitSpawnTimer++;
 
             if (fruitSpawnTimer >= nextFruitSpawnTime) {
                 fruitSpawnTimer = 0;
@@ -811,15 +797,15 @@
             }
         }
 
-        function updateFruit(deltaTime) {
+        function updateFruit() {
             for (let i = fruits.length - 1; i >= 0; i--) {
                 const fruit = fruits[i];
 
                 // Move
-                fruit.x -= (CONFIG.SCROLL_SPEED + 1) * deltaTime;
+                fruit.x -= CONFIG.SCROLL_SPEED + 1;
 
                 // Bob up and down
-                fruit.bobTimer += 0.1 * deltaTime;
+                fruit.bobTimer += 0.1;
                 fruit.baseY = fruit.y;
 
                 // Remove if off screen
@@ -1031,13 +1017,13 @@
         }
 
         // ==================== PARTICLES & EFFECTS ====================
-        function updateParticles(deltaTime) {
+        function updateParticles() {
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
-                p.x += p.vx * deltaTime;
-                p.y += p.vy * deltaTime;
-                p.vy += 0.3 * deltaTime; // gravity
-                p.life -= deltaTime;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.3; // gravity
+                p.life--;
 
                 if (p.life <= 0) {
                     particles.splice(i, 1);
@@ -1045,11 +1031,11 @@
             }
         }
 
-        function updateScorePopups(deltaTime) {
+        function updateScorePopups() {
             for (let i = scorePopups.length - 1; i >= 0; i--) {
                 const popup = scorePopups[i];
-                popup.y += popup.vy * deltaTime;
-                popup.life -= deltaTime;
+                popup.y += popup.vy;
+                popup.life--;
 
                 if (popup.life <= 0) {
                     scorePopups.splice(i, 1);
@@ -1058,16 +1044,16 @@
         }
 
         // ==================== BACKGROUND ====================
-        function updateBackground(deltaTime) {
+        function updateBackground() {
             // Move ground
-            background.groundOffset -= CONFIG.SCROLL_SPEED * deltaTime;
+            background.groundOffset -= CONFIG.SCROLL_SPEED;
             if (background.groundOffset <= -32) {
                 background.groundOffset += 32;
             }
 
             // Move stars (very slow)
             for (const star of background.stars) {
-                star.x -= CONFIG.SCROLL_SPEED * 0.05 * deltaTime;
+                star.x -= CONFIG.SCROLL_SPEED * 0.05;
                 if (star.x < 0) {
                     star.x = CONFIG.BASE_WIDTH;
                     star.y = Math.random() * 80;
@@ -1076,7 +1062,7 @@
 
             // Move clouds (slow)
             for (const c of background.clouds) {
-                c.x -= CONFIG.SCROLL_SPEED * 0.15 * deltaTime;
+                c.x -= CONFIG.SCROLL_SPEED * 0.15;
                 if (c.x + c.width < 0) {
                     c.x = CONFIG.BASE_WIDTH + Math.random() * 100;
                     c.y = 20 + Math.random() * 30;
@@ -1086,7 +1072,7 @@
 
             // Move mountains (slow)
             for (const m of background.mountains) {
-                m.x -= CONFIG.SCROLL_SPEED * 0.2 * deltaTime;
+                m.x -= CONFIG.SCROLL_SPEED * 0.2;
                 if (m.x + m.width < 0) {
                     m.x = CONFIG.BASE_WIDTH + Math.random() * 100;
                 }
@@ -1094,7 +1080,7 @@
 
             // Move buildings (medium)
             for (const b of background.buildings) {
-                b.x -= CONFIG.SCROLL_SPEED * 0.5 * deltaTime;
+                b.x -= CONFIG.SCROLL_SPEED * 0.5;
                 if (b.x + b.width < 0) {
                     b.x = CONFIG.BASE_WIDTH + Math.random() * 50;
                     b.height = 50 + Math.random() * 50;
@@ -1908,21 +1894,20 @@
             if (!DEBUG.showFps) return;
 
             const ctx = game.ctx;
-            const fps = Math.round(1000 / Math.max(DEBUG.avgFrameTime, 1));
-            const slowPercent = DEBUG.slowFrameCount > 0 ?
-                ((DEBUG.slowFrameCount / DEBUG.frameTimeHistory.length) * 100).toFixed(1) : '0.0';
+            const slowPercent = DEBUG.totalFrames > 0 ?
+                ((DEBUG.slowFrameCount / DEBUG.totalFrames) * 100).toFixed(1) : '0.0';
 
             // Background
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(5, CONFIG.BASE_HEIGHT - 45, 100, 40);
+            ctx.fillRect(5, CONFIG.BASE_HEIGHT - 40, 95, 35);
 
             // Text
             ctx.fillStyle = DEBUG.frameTime > 16.67 ? '#ff4444' : '#44ff44';
             ctx.font = '8px monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`FPS: ${fps}`, 10, CONFIG.BASE_HEIGHT - 33);
-            ctx.fillText(`Frame: ${DEBUG.frameTime.toFixed(1)}ms`, 10, CONFIG.BASE_HEIGHT - 23);
-            ctx.fillText(`Slow: ${DEBUG.slowFrameCount} (${slowPercent}%)`, 10, CONFIG.BASE_HEIGHT - 13);
+            ctx.fillText(`Frame: ${DEBUG.frameTime.toFixed(1)}ms`, 10, CONFIG.BASE_HEIGHT - 28);
+            ctx.fillText(`Slow: ${DEBUG.slowFrameCount}/${DEBUG.totalFrames}`, 10, CONFIG.BASE_HEIGHT - 18);
+            ctx.fillText(`(${slowPercent}% > 16.7ms)`, 10, CONFIG.BASE_HEIGHT - 8);
         }
 
         function drawGameOver() {
