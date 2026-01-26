@@ -632,8 +632,16 @@
                 game.score += 1;
             }
 
-            // Increase difficulty over time
-            game.difficulty = 1 + Math.floor(game.survivalTime / 600) * 0.2;
+            // Increase difficulty over time (accelerates after first minute)
+            const oneMinute = 3600; // 60 seconds * 60 fps
+            if (game.survivalTime < oneMinute) {
+                // First minute: gradual ramp up
+                game.difficulty = 1 + (game.survivalTime / oneMinute) * 0.5;
+            } else {
+                // After first minute: accelerate faster
+                const extraTime = game.survivalTime - oneMinute;
+                game.difficulty = 1.5 + (extraTime / 300) * 0.5; // 5x faster scaling
+            }
 
             // Update ninja
             updateNinja(dt);
@@ -746,9 +754,9 @@
             if (game.spawnTimer >= game.nextSpawnTime) {
                 game.spawnTimer = 0;
 
-                // Decrease spawn interval as difficulty increases
-                const minInterval = Math.max(30, CONFIG.MIN_SPAWN_INTERVAL - game.difficulty * 10);
-                const maxInterval = Math.max(60, CONFIG.MAX_SPAWN_INTERVAL - game.difficulty * 20);
+                // Decrease spawn interval as difficulty increases (more aggressive after minute 1)
+                const minInterval = Math.max(15, CONFIG.MIN_SPAWN_INTERVAL - game.difficulty * 15);
+                const maxInterval = Math.max(30, CONFIG.MAX_SPAWN_INTERVAL - game.difficulty * 30);
                 game.nextSpawnTime = minInterval + Math.random() * (maxInterval - minInterval);
 
                 // Spawn robot
