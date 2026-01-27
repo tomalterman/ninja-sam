@@ -343,6 +343,10 @@
                         // Funny robot shriek
                         this.playRobotShriek();
                         break;
+                    case 'squash':
+                        // Robot fart - low rumbling squash
+                        this.playRobotFart();
+                        break;
                     case 'fruit':
                         this.playTone(600, 800, 0.1, 'sine', 0.3);
                         setTimeout(() => this.playTone(800, 1000, 0.1, 'sine', 0.3), 50);
@@ -445,6 +449,43 @@
                 lfo.start(now);
                 osc.stop(now + duration);
                 lfo.stop(now + duration);
+            },
+
+            playRobotFart() {
+                if (!this.ctx) return;
+
+                const duration = 0.2;
+                const now = this.ctx.currentTime;
+
+                // Low rumbling base tone
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(80, now);
+                osc.frequency.linearRampToValueAtTime(40, now + duration);
+
+                // Wobble for fart-like flutter
+                const lfo = this.ctx.createOscillator();
+                const lfoGain = this.ctx.createGain();
+                lfo.frequency.value = 20;
+                lfoGain.gain.value = 30;
+                lfo.connect(lfoGain);
+                lfoGain.connect(osc.frequency);
+
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0, now + duration);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                lfo.start(now);
+                osc.stop(now + duration);
+                lfo.stop(now + duration);
+
+                // Add some noise for extra splat
+                this.playNoise(0.1, 300, 50);
             }
         };
 
@@ -1244,7 +1285,7 @@
         }
 
         function destroyRobot(robot, index, squashed = false) {
-            Sound.play('hit');
+            Sound.play(squashed ? 'squash' : 'hit');
             // Create explosion particles
             const particleCount = squashed ? 5 : 8;
             for (let i = 0; i < particleCount; i++) {
