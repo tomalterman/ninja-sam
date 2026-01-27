@@ -283,6 +283,113 @@
             fpsLastTime: 0
         };
 
+        // ==================== SOUND SYSTEM ====================
+        const Sound = {
+            ctx: null,
+            enabled: true,
+
+            init() {
+                // Create audio context on first user interaction
+                const initAudio = () => {
+                    if (!this.ctx) {
+                        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    document.removeEventListener('touchstart', initAudio);
+                    document.removeEventListener('keydown', initAudio);
+                    document.removeEventListener('click', initAudio);
+                };
+                document.addEventListener('touchstart', initAudio);
+                document.addEventListener('keydown', initAudio);
+                document.addEventListener('click', initAudio);
+            },
+
+            play(type) {
+                if (!this.ctx || !this.enabled) return;
+
+                const now = this.ctx.currentTime;
+
+                switch(type) {
+                    case 'jump':
+                        this.playTone(200, 400, 0.1, 'square', 0.3);
+                        break;
+                    case 'slash':
+                        this.playNoise(0.08, 800, 200);
+                        break;
+                    case 'hit':
+                        this.playTone(400, 100, 0.15, 'square', 0.4);
+                        this.playTone(200, 50, 0.15, 'square', 0.3);
+                        break;
+                    case 'fruit':
+                        this.playTone(600, 800, 0.1, 'sine', 0.3);
+                        setTimeout(() => this.playTone(800, 1000, 0.1, 'sine', 0.3), 50);
+                        break;
+                    case 'damage':
+                        this.playTone(200, 100, 0.2, 'sawtooth', 0.4);
+                        break;
+                    case 'gameOver':
+                        this.playTone(400, 200, 0.3, 'square', 0.3);
+                        setTimeout(() => this.playTone(300, 150, 0.3, 'square', 0.3), 150);
+                        setTimeout(() => this.playTone(200, 100, 0.4, 'square', 0.3), 300);
+                        break;
+                    case 'start':
+                        this.playTone(300, 400, 0.1, 'square', 0.3);
+                        setTimeout(() => this.playTone(400, 500, 0.1, 'square', 0.3), 100);
+                        setTimeout(() => this.playTone(600, 700, 0.15, 'square', 0.3), 200);
+                        break;
+                }
+            },
+
+            playTone(startFreq, endFreq, duration, type = 'square', volume = 0.3) {
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = type;
+                osc.frequency.setValueAtTime(startFreq, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(endFreq, this.ctx.currentTime + duration);
+
+                gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + duration);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+
+            playNoise(duration, startFreq = 1000, endFreq = 200) {
+                if (!this.ctx) return;
+
+                const bufferSize = this.ctx.sampleRate * duration;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                const filter = this.ctx.createBiquadFilter();
+                const gain = this.ctx.createGain();
+
+                noise.buffer = buffer;
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(startFreq, this.ctx.currentTime);
+                filter.frequency.linearRampToValueAtTime(endFreq, this.ctx.currentTime + duration);
+
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + duration);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start();
+            }
+        };
+
         // ==================== GAME STATE ====================
         const game = {
             canvas: null,
@@ -458,6 +565,9 @@
             // Setup input
             setupInput();
 
+            // Initialize sound
+            Sound.init();
+
             // Load high scores
             loadHighScores();
 
@@ -469,6 +579,7 @@
 
         function startGameFromTitle() {
             game.showTitleScreen = false;
+            Sound.play('start');
             resetGame();
         }
 
@@ -779,6 +890,7 @@
             if (game.keys.jump && !ninja.isJumping) {
                 ninja.isJumping = true;
                 ninja.velocityY = CONFIG.JUMP_FORCE;
+                Sound.play('jump');
             }
 
             // Apply gravity
@@ -807,6 +919,7 @@
                 ninja.isSlashing = true;
                 ninja.slashTimer = CONFIG.SLASH_DURATION;
                 game.keys.slashUsed = true;  // Must release key before slashing again
+                Sound.play('slash');
             }
 
             if (ninja.isSlashing) {
@@ -1061,6 +1174,7 @@
         }
 
         function destroyRobot(robot, index, squashed = false) {
+            Sound.play('hit');
             // Create explosion particles
             const particleCount = squashed ? 5 : 8;
             for (let i = 0; i < particleCount; i++) {
@@ -1079,6 +1193,7 @@
         }
 
         function destroyFruit(fruit, index) {
+            Sound.play('fruit');
             // Create colorful fruit explosion particles
             for (let i = 0; i < 6; i++) {
                 const bobY = Math.sin(fruit.bobTimer + fruit.bobOffset) * 5;
@@ -1101,6 +1216,7 @@
             ninja.invincible = CONFIG.INVINCIBILITY;
             ninja.hitReaction = 30; // 0.5 second hit stagger
             game.combo = 1;
+            Sound.play('damage');
 
             // Screen shake effect (simple version - just particles)
             for (let i = 0; i < 5; i++) {
@@ -1117,6 +1233,7 @@
 
             if (game.health <= 0) {
                 ninja.isDead = true;
+                Sound.play('gameOver');
                 ninja.deathAnim = 120; // 2 second death animation
             }
         }
