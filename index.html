@@ -60,6 +60,29 @@
             border-radius: 4px;
         }
 
+        #muteBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        #muteBtn:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+
         #touchControls {
             position: absolute;
             bottom: 20px;
@@ -205,6 +228,7 @@
             <div class="touchBtn" id="jumpBtn">JUMP</div>
             <div class="touchBtn" id="slashBtn">SLASH</div>
         </div>
+        <button id="muteBtn" aria-label="Toggle sound">🔊</button>
     </div>
     <div id="instructions">
         <p><strong>JUMP:</strong> Space, W, or Arrow Up</p>
@@ -737,6 +761,18 @@
                 game.keys.slash = true;
             });
             slashBtn.addEventListener('touchend', () => { game.keys.slash = false; game.keys.slashUsed = false; });
+
+            // Mute button
+            const muteBtn = document.getElementById('muteBtn');
+            muteBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                Sound.enabled = !Sound.enabled;
+                muteBtn.textContent = Sound.enabled ? '🔊' : '🔇';
+            });
+            muteBtn.addEventListener('touchstart', (e) => {
+                e.stopPropagation(); // Prevent triggering game actions
+            });
 
             // Click/touch handler for game over screen and keyboard
             function handleCanvasInteraction(e) {
