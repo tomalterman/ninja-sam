@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Ninja Sam - Robot Runner</title>
     <style>
         * {
@@ -18,10 +20,30 @@
             justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
+            min-height: 100dvh; /* Dynamic viewport height for mobile browsers */
             padding: 10px;
             font-family: 'Courier New', monospace;
             overflow-x: hidden;
             overflow-y: auto;
+        }
+
+        /* iPad and tablet landscape optimization */
+        @media (pointer: coarse) and (min-width: 700px) and (orientation: landscape) {
+            body {
+                padding: 0;
+                justify-content: center;
+                overflow: hidden;
+            }
+            #highScores {
+                display: none;
+            }
+            #gameContainer {
+                width: 100%;
+                height: 100dvh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
         }
 
         #gameContainer {
@@ -64,10 +86,30 @@
             pointer-events: auto;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
         .touchBtn:active {
             background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Bigger touch buttons for iPad/tablets */
+        @media (pointer: coarse) and (min-width: 700px) {
+            #touchControls {
+                bottom: 40px;
+                padding: 0 60px;
+                /* Handle safe areas for newer iPads */
+                padding-left: max(60px, env(safe-area-inset-left));
+                padding-right: max(60px, env(safe-area-inset-right));
+                padding-bottom: env(safe-area-inset-bottom, 0);
+            }
+            .touchBtn {
+                width: 120px;
+                height: 120px;
+                font-size: 20px;
+                border-width: 4px;
+            }
         }
 
         @media (pointer: coarse) {
@@ -432,19 +474,35 @@
 
         function resizeCanvas() {
             const container = document.getElementById('gameContainer');
-            const maxWidth = window.innerWidth - 20;
-            // Reserve space for instructions and high scores
             const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-            const reservedHeight = isTouchDevice ? 120 : 180;
-            const maxHeight = window.innerHeight - reservedHeight;
+            const isLandscapeTablet = isTouchDevice && window.innerWidth >= 700 && window.innerWidth > window.innerHeight;
+
+            let maxWidth, maxHeight;
+
+            if (isLandscapeTablet) {
+                // iPad/tablet in landscape: use full viewport
+                maxWidth = window.innerWidth;
+                maxHeight = window.innerHeight;
+            } else {
+                maxWidth = window.innerWidth - 20;
+                // Reserve space for instructions and high scores
+                const reservedHeight = isTouchDevice ? 120 : 180;
+                maxHeight = window.innerHeight - reservedHeight;
+            }
 
             let scale = Math.min(
                 maxWidth / CONFIG.BASE_WIDTH,
                 maxHeight / CONFIG.BASE_HEIGHT
             );
 
-            // Round down to nearest integer for crisp pixels (min 1)
-            scale = Math.max(1, Math.floor(scale));
+            if (isLandscapeTablet) {
+                // Allow fractional scaling on tablets for full-width display
+                // Keep at least 1x scale
+                scale = Math.max(1, scale);
+            } else {
+                // Round down to nearest integer for crisp pixels on desktop
+                scale = Math.max(1, Math.floor(scale));
+            }
 
             game.canvas.style.width = (CONFIG.BASE_WIDTH * scale) + 'px';
             game.canvas.style.height = (CONFIG.BASE_HEIGHT * scale) + 'px';
