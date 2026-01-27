@@ -340,8 +340,8 @@
                         this.playNoise(0.08, 800, 200);
                         break;
                     case 'hit':
-                        this.playTone(400, 100, 0.15, 'square', 0.4);
-                        this.playTone(200, 50, 0.15, 'square', 0.3);
+                        // Funny robot shriek
+                        this.playRobotShriek();
                         break;
                     case 'fruit':
                         this.playTone(600, 800, 0.1, 'sine', 0.3);
@@ -411,6 +411,40 @@
                 gain.connect(this.ctx.destination);
 
                 noise.start();
+            },
+
+            playRobotShriek() {
+                if (!this.ctx) return;
+
+                const duration = 0.15;
+                const now = this.ctx.currentTime;
+
+                // Main shriek oscillator - high pitched descending
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.linearRampToValueAtTime(200, now + duration);
+
+                // Add wobble with LFO for funny vibrato effect
+                const lfo = this.ctx.createOscillator();
+                const lfoGain = this.ctx.createGain();
+                lfo.frequency.value = 30; // Fast wobble
+                lfoGain.gain.value = 150; // Wobble amount
+                lfo.connect(lfoGain);
+                lfoGain.connect(osc.frequency);
+
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.linearRampToValueAtTime(0, now + duration);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                lfo.start(now);
+                osc.stop(now + duration);
+                lfo.stop(now + duration);
             }
         };
 
