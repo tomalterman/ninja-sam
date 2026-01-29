@@ -1100,7 +1100,8 @@
                 // Spawn robot
                 const isTall = Math.random() < 0.3 + game.difficulty * 0.1;
                 // Blue lightning robots are small and rarer - stomp them for lightning power!
-                const isLightning = !isTall && Math.random() < 0.15 + game.difficulty * 0.05;
+                // Don't spawn until 15 seconds into the game (900 frames)
+                const isLightning = !isTall && game.survivalTime >= 900 && Math.random() < 0.15 + game.difficulty * 0.05;
                 robots.push({
                     x: CONFIG.BASE_WIDTH + 20,
                     y: CONFIG.GROUND_Y,
@@ -1315,8 +1316,8 @@
 
                 // Check slash collision
                 if (slashBox && boxCollision(slashBox, robotBox)) {
-                    if (robot.isTall) {
-                        // Tall robots have electricity shields - slashing zaps the ninja!
+                    if (robot.isTall || robot.isLightning) {
+                        // Tall robots and blue lightning robots zap the ninja when slashed!
                         if (ninja.invincible <= 0) {
                             takeDamage();
                             // Create electric zap particles
@@ -1340,11 +1341,11 @@
                     continue;
                 }
 
-                // Check body collision (shields zap on contact for tall robots)
+                // Check body collision (shields zap on contact for tall/lightning robots)
                 if (ninja.invincible <= 0 && boxCollision(ninjaBox, robotBox)) {
                     takeDamage();
-                    // Extra zap effect for tall shielded robots
-                    if (robot.isTall) {
+                    // Extra zap effect for tall shielded robots and blue lightning robots
+                    if (robot.isTall || robot.isLightning) {
                         for (let j = 0; j < 5; j++) {
                             particles.push({
                                 x: ninja.x,
@@ -2561,11 +2562,11 @@
                 ctx.fillRect(x - 4, y - 25 + bobY, 3, 2);
                 ctx.fillRect(x + 1, y - 25 + bobY, 3, 2);
 
-                // Antenna with lightning effect
-                ctx.fillStyle = '#446688';
-                ctx.fillRect(x - 1, y - 32 + bobY, 2, 4);
-                ctx.fillStyle = '#00ffff';
-                ctx.fillRect(x - 2, y - 34 + bobY, 4, 3);
+                // Flat hat (not electric - hints you can squash it!)
+                ctx.fillStyle = '#664422'; // Brown/tan color, not blue
+                ctx.fillRect(x - 10, y - 31 + bobY, 20, 3); // Wide flat brim
+                ctx.fillStyle = '#553311';
+                ctx.fillRect(x - 6, y - 34 + bobY, 12, 4); // Hat top
 
                 // Arms - blue
                 ctx.fillStyle = '#336688';
