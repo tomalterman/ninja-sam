@@ -1292,18 +1292,25 @@
                     height: robot.height
                 };
 
-                // Robot head hitbox (for stomping)
+                // Robot head hitbox (for stomping) - generous size for kid-friendly gameplay
                 const robotHeadBox = {
-                    x: robot.x - robot.width / 2,
-                    y: robot.y - robot.height,
-                    width: robot.width,
-                    height: 10
+                    x: robot.x - robot.width / 2 - 4,  // Wider to catch edge stomps
+                    y: robot.y - robot.height - 2,     // Slightly above robot
+                    width: robot.width + 8,            // Extra width on both sides
+                    height: 16                         // Taller head zone
                 };
 
                 // Check stomp collision (ninja falling and feet hit robot head)
                 // This is the ONLY way to destroy tall shielded robots
                 // Stomping blue lightning robots grants lightning power!
-                if (ninja.isJumping && ninja.velocityY > 0 && boxCollision(feetBox, robotHeadBox)) {
+                // Also check if ninja is clearly above robot (forgiving stomp detection)
+                const ninjaAboveRobot = ninja.y - 4 < robot.y - robot.height + 12;
+                const ninjaOverRobot = ninja.x > robot.x - robot.width / 2 - 6 &&
+                                       ninja.x < robot.x + robot.width / 2 + 6;
+                const isStomp = ninja.isJumping && ninja.velocityY > 0 &&
+                               (boxCollision(feetBox, robotHeadBox) || (ninjaAboveRobot && ninjaOverRobot && boxCollision(feetBox, robotBox)));
+
+                if (isStomp) {
                     // Check if this is a lightning robot - gain power!
                     if (robot.isLightning) {
                         ninja.hasLightningPower = true;
