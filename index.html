@@ -2300,6 +2300,7 @@
             if (ninja.hasLightningPower) {
                 // === LIGHTNING MODE - No sword, charging hands ===
                 const sparkle = Math.sin(Date.now() / 80) * 0.3 + 0.7;
+                const isReady = ninja.lightningCooldown <= 0; // Only show lightning when ready
 
                 // Shooting animation progress (0 = start charge, 1 = full thrust)
                 let shootProgress = 0;
@@ -2329,7 +2330,7 @@
                     leftHandX = x + shootProgress * 12;
                     rightHandX = x + shootProgress * 12;
                 } else {
-                    // Idle charging pose: hands at sides, glowing
+                    // Idle pose: hands at sides
                     leftHandX = x - 10;
                     rightHandX = x + 10;
                 }
@@ -2337,25 +2338,29 @@
                 // Left arm
                 ctx.fillStyle = CONFIG.COLORS.NINJA;
                 ctx.fillRect(leftHandX - 5, y - 12 + bobY, 6, 8);
-                // Left hand with lightning glow
+                // Left hand
                 ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
                 ctx.fillRect(leftHandX - 4, y - 6 + bobY, 5, 5);
-                // Lightning charge effect on left hand
-                ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
-                ctx.fillRect(leftHandX - 3, y - 5 + bobY, 3, 3);
+                // Lightning charge effect on left hand - ONLY when ready
+                if (isReady) {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
+                    ctx.fillRect(leftHandX - 3, y - 5 + bobY, 3, 3);
+                }
 
                 // Right arm
                 ctx.fillStyle = CONFIG.COLORS.NINJA;
                 ctx.fillRect(rightHandX - 1, y - 12 + bobY, 6, 8);
-                // Right hand with lightning glow
+                // Right hand
                 ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
                 ctx.fillRect(rightHandX - 1, y - 6 + bobY, 5, 5);
-                // Lightning charge effect on right hand
-                ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
-                ctx.fillRect(rightHandX, y - 5 + bobY, 3, 3);
+                // Lightning charge effect on right hand - ONLY when ready
+                if (isReady) {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
+                    ctx.fillRect(rightHandX, y - 5 + bobY, 3, 3);
+                }
 
-                // Crackling lightning between hands when charging or idle
-                if (!ninja.isShootingLightning || shootProgress < 0) {
+                // Crackling lightning between hands - ONLY when ready (or during charge animation)
+                if (isReady && (!ninja.isShootingLightning || shootProgress < 0)) {
                     ctx.strokeStyle = `rgba(0, 255, 255, ${sparkle * 0.8})`;
                     ctx.lineWidth = 1;
                     const arcY = y - 8 + bobY;
@@ -2924,37 +2929,6 @@
                 ctx.fillText(game.combo + 'x COMBO', 10, 34);
             }
 
-            // Lightning power indicator
-            if (ninja.hasLightningPower) {
-                const iconX = 12;
-                const iconY = game.combo > 1 ? 44 : 34; // Below combo if shown
-                const ready = ninja.lightningCooldown <= 0;
-
-                ctx.fillStyle = ready ? '#00ffff' : '#446688';
-                // Simple lightning bolt icon shape
-                ctx.beginPath();
-                ctx.moveTo(iconX, iconY);
-                ctx.lineTo(iconX + 5, iconY);
-                ctx.lineTo(iconX + 2, iconY + 5);
-                ctx.lineTo(iconX + 6, iconY + 5);
-                ctx.lineTo(iconX - 1, iconY + 12);
-                ctx.lineTo(iconX + 2, iconY + 6);
-                ctx.lineTo(iconX - 2, iconY + 6);
-                ctx.closePath();
-                ctx.fill();
-
-                // Ready or cooldown text
-                ctx.font = 'bold 8px monospace';
-                ctx.textAlign = 'left';
-                if (ready) {
-                    ctx.fillStyle = '#00ffff';
-                    ctx.fillText('ZAP!', iconX + 10, iconY + 8);
-                } else {
-                    ctx.fillStyle = '#446688';
-                    const seconds = Math.ceil(ninja.lightningCooldown / 60);
-                    ctx.fillText(seconds + 's', iconX + 10, iconY + 8);
-                }
-            }
 
             // Health (ninja stars)
             ctx.textAlign = 'right';
