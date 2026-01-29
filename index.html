@@ -1073,7 +1073,7 @@
                     ninja.isShootingLightning = true;
                     ninja.shootTimer = 12; // Quick charge-and-thrust animation
                     ninja.boltFired = false;
-                    ninja.lightningCooldown = 150; // 2.5 second cooldown
+                    ninja.lightningCooldown = 90; // 1.5 second cooldown
                     game.keys.slashUsed = true;
                 } else if (!ninja.hasLightningPower && !ninja.isSlashing && ninja.slashCooldown <= 0) {
                     // Normal sword slash
@@ -1495,6 +1495,7 @@
             ninja.invincible = CONFIG.INVINCIBILITY;
             ninja.hitReaction = 30; // 0.5 second hit stagger
             game.combo = 1;
+            ninja.hasLightningPower = false; // Lose lightning power when hit
             Sound.play('damage');
 
             // Screen shake effect (simple version - just particles)
