@@ -759,6 +759,9 @@
             ninja.isDead = false;
             ninja.hasLightningPower = false;
             ninja.lightningCooldown = 0;
+            ninja.isShootingLightning = false;
+            ninja.shootTimer = 0;
+            ninja.boltFired = false;
 
             robots = [];
             fruits = [];
@@ -1051,11 +1054,26 @@
                 ninja.lightningCooldown -= dt;
             }
 
-            if (game.keys.slash && !game.keys.slashUsed) {
-                if (ninja.hasLightningPower && ninja.lightningCooldown <= 0) {
-                    // Shoot lightning bolt instead of slashing!
+            // Lightning shooting animation
+            if (ninja.isShootingLightning) {
+                ninja.shootTimer -= dt;
+                // Fire the bolt at the thrust moment (halfway through animation)
+                if (ninja.shootTimer <= 6 && !ninja.boltFired) {
                     shootLightningBolt();
-                    ninja.lightningCooldown = 60; // 1 second cooldown
+                    ninja.boltFired = true;
+                }
+                if (ninja.shootTimer <= 0) {
+                    ninja.isShootingLightning = false;
+                }
+            }
+
+            if (game.keys.slash && !game.keys.slashUsed) {
+                if (ninja.hasLightningPower && ninja.lightningCooldown <= 0 && !ninja.isShootingLightning) {
+                    // Start lightning shooting animation!
+                    ninja.isShootingLightning = true;
+                    ninja.shootTimer = 12; // Quick charge-and-thrust animation
+                    ninja.boltFired = false;
+                    ninja.lightningCooldown = 150; // 2.5 second cooldown
                     game.keys.slashUsed = true;
                 } else if (!ninja.hasLightningPower && !ninja.isSlashing && ninja.slashCooldown <= 0) {
                     // Normal sword slash
@@ -1140,13 +1158,13 @@
         // ==================== LIGHTNING BOLT ====================
         function shootLightningBolt() {
             lightningBolts.push({
-                x: ninja.x + 20,
-                y: ninja.y - 14,
-                vx: 8,           // Fast forward movement
-                width: 40,
+                x: ninja.x + 18,  // Starts from thrust hands position
+                y: ninja.y - 10,  // At midsection height
+                vx: 10,           // Fast forward movement
+                width: 50,
                 height: 10,
-                bouncing: false, // True if reflected by blue robot
-                bounceDelay: 0   // Frames to wait before bounce can hit ninja
+                bouncing: false,  // True if reflected by blue robot
+                bounceDelay: 0    // Frames to wait before bounce can hit ninja
             });
             Sound.play('lightning');
         }
@@ -2270,124 +2288,195 @@
                 ctx.fillRect(x + 4 - legOffset, y + 2, 7, 3);
             }
 
-            // === ARMS & SWORD ===
-            const slashProgress = ninja.isSlashing ? (1 - ninja.slashTimer / CONFIG.SLASH_DURATION) : 0;
+            // === ARMS & SWORD/LIGHTNING ===
+            if (ninja.hasLightningPower) {
+                // === LIGHTNING MODE - No sword, charging hands ===
+                const sparkle = Math.sin(Date.now() / 80) * 0.3 + 0.7;
 
-            // Sword swing angle: held backward, swings forward toward robots
-            // Robots come from the right, so slash goes from back (left/up) to front (right)
-            let swordAngle;
-            if (ninja.isSlashing) {
-                // Smooth swing arc using easeOutQuad
-                const eased = 1 - (1 - slashProgress) * (1 - slashProgress);
-                swordAngle = -2.2 + eased * 2.6; // -2.2 rad to +0.4 rad (~-125° to +25°)
-            } else {
-                // Ready position - sword held back, ready to swing forward
-                swordAngle = -2.0 + Math.sin(flameTimer * 0.5) * 0.08; // Pointing backward with subtle sway
-            }
-
-            const swordLength = 32;
-            const swordPivotX = x + 12;
-            const swordPivotY = y - 10 + bobY;
-
-            // Calculate sword tip position
-            const swordTipX = swordPivotX + Math.cos(swordAngle) * swordLength;
-            const swordTipY = swordPivotY + Math.sin(swordAngle) * swordLength;
-
-            // Left arm (always visible)
-            ctx.fillStyle = CONFIG.COLORS.NINJA;
-            ctx.fillRect(x - 14, y - 12 + bobY, 5, 8);
-            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
-            ctx.fillRect(x - 14, y - 6 + bobY, 4, 4);
-
-            // Right arm holding sword
-            ctx.save();
-            ctx.translate(swordPivotX, swordPivotY);
-            ctx.rotate(swordAngle);
-
-            // Arm
-            ctx.fillStyle = CONFIG.COLORS.NINJA;
-            ctx.fillRect(-4, -3, 10, 6);
-            // Hand gripping
-            ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
-            ctx.fillRect(4, -2, 5, 5);
-
-            // === FLAMING SWORD ===
-            // Handle
-            ctx.fillStyle = '#5d4037';
-            ctx.fillRect(8, -2, 6, 5);
-            // Handle wrap
-            ctx.fillStyle = '#8b0000';
-            ctx.fillRect(9, -1, 2, 3);
-            ctx.fillRect(12, -1, 2, 3);
-            // Guard (cross guard)
-            ctx.fillStyle = '#ffd700';
-            ctx.fillRect(6, -4, 3, 9);
-            ctx.fillStyle = '#ffab00';
-            ctx.fillRect(6, -1, 3, 3);
-
-            // Blade
-            ctx.fillStyle = '#b0bec5';
-            ctx.fillRect(14, -2, swordLength - 14, 5);
-            // Blade edge highlight
-            ctx.fillStyle = '#eceff1';
-            ctx.fillRect(14, -2, swordLength - 14, 2);
-            // Blade center fuller
-            ctx.fillStyle = '#78909c';
-            ctx.fillRect(16, 0, swordLength - 18, 2);
-            // Blade tip
-            ctx.fillStyle = '#eceff1';
-            ctx.beginPath();
-            ctx.moveTo(swordLength - 2, -2);
-            ctx.lineTo(swordLength + 4, 1);
-            ctx.lineTo(swordLength - 2, 4);
-            ctx.fill();
-
-            // === FLAMES ALONG THE BLADE (simplified) ===
-            const flicker = ((Date.now() / 50) % 4) - 2; // Simple flicker without sin
-            for (let i = 0; i < 4; i++) {
-                const flameX = 18 + i * 5;
-                ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
-                ctx.fillRect(flameX, -4 + (i % 2) * flicker, 3, 3);
-                ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
-                ctx.fillRect(flameX, 3 - (i % 2) * flicker, 3, 3);
-            }
-
-            // Tip flame
-            const tipFlicker = ((Date.now() / 40) % 4) - 2;
-            ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
-            ctx.fillRect(swordLength, -4 - tipFlicker, 5, 5);
-            ctx.fillRect(swordLength + 2, 2 + tipFlicker * 0.5, 4, 4);
-            ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
-            ctx.fillRect(swordLength + 2, -2 - tipFlicker * 0.5, 4, 4);
-            ctx.fillStyle = CONFIG.COLORS.FLAME_MID;
-            ctx.fillRect(swordLength + 1, 0, 3, 2);
-
-            ctx.restore();
-
-            // === SLASH TRAIL (simplified for performance) ===
-            if (ninja.isSlashing && slashProgress > 0.2) {
-                ctx.save();
-
-                // Fewer trail segments for mobile performance
-                for (let i = 0; i < 5; i++) {
-                    const segmentProgress = slashProgress - (i * 0.12);
-                    if (segmentProgress < 0) continue;
-
-                    const segmentEased = 1 - (1 - segmentProgress) * (1 - segmentProgress);
-                    const trailAngle = -2.2 + segmentEased * 2.6;
-
-                    const trailX = swordPivotX + Math.cos(trailAngle) * (swordLength + 4);
-                    const trailY = swordPivotY + Math.sin(trailAngle) * (swordLength + 4);
-
-                    const size = 6 + (5 - i) * 2;
-
-                    ctx.globalAlpha = (1 - i / 5) * 0.6;
-                    ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
-                    ctx.fillRect(trailX - size/2, trailY - size/2, size, size);
+                // Shooting animation progress (0 = start charge, 1 = full thrust)
+                let shootProgress = 0;
+                if (ninja.isShootingLightning) {
+                    // First half: hands draw inward. Second half: thrust forward
+                    const animProgress = 1 - (ninja.shootTimer / 12);
+                    if (animProgress < 0.5) {
+                        // Drawing hands inward
+                        shootProgress = -animProgress * 2; // -1 to 0
+                    } else {
+                        // Thrusting forward
+                        shootProgress = (animProgress - 0.5) * 2; // 0 to 1
+                    }
                 }
 
-                ctx.globalAlpha = 1;
+                // Hand positions based on animation
+                const baseHandX = x + 10;
+                const handY = y - 10 + bobY;
+                let leftHandX, rightHandX;
+
+                if (shootProgress < 0) {
+                    // Charging: hands draw toward center
+                    leftHandX = x - 8 + (-shootProgress) * 6;
+                    rightHandX = x + 8 - (-shootProgress) * 6;
+                } else if (shootProgress > 0) {
+                    // Thrusting: hands push forward together
+                    leftHandX = x + shootProgress * 12;
+                    rightHandX = x + shootProgress * 12;
+                } else {
+                    // Idle charging pose: hands at sides, glowing
+                    leftHandX = x - 10;
+                    rightHandX = x + 10;
+                }
+
+                // Left arm
+                ctx.fillStyle = CONFIG.COLORS.NINJA;
+                ctx.fillRect(leftHandX - 5, y - 12 + bobY, 6, 8);
+                // Left hand with lightning glow
+                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+                ctx.fillRect(leftHandX - 4, y - 6 + bobY, 5, 5);
+                // Lightning charge effect on left hand
+                ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
+                ctx.fillRect(leftHandX - 3, y - 5 + bobY, 3, 3);
+
+                // Right arm
+                ctx.fillStyle = CONFIG.COLORS.NINJA;
+                ctx.fillRect(rightHandX - 1, y - 12 + bobY, 6, 8);
+                // Right hand with lightning glow
+                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+                ctx.fillRect(rightHandX - 1, y - 6 + bobY, 5, 5);
+                // Lightning charge effect on right hand
+                ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
+                ctx.fillRect(rightHandX, y - 5 + bobY, 3, 3);
+
+                // Crackling lightning between hands when charging or idle
+                if (!ninja.isShootingLightning || shootProgress < 0) {
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${sparkle * 0.8})`;
+                    ctx.lineWidth = 1;
+                    const arcY = y - 8 + bobY;
+                    const t = Date.now() / 40;
+                    ctx.beginPath();
+                    ctx.moveTo(leftHandX, arcY);
+                    ctx.lineTo((leftHandX + rightHandX) / 2 + Math.sin(t) * 3, arcY - 3 + Math.sin(t * 1.5) * 2);
+                    ctx.lineTo(rightHandX, arcY);
+                    ctx.stroke();
+                    // Extra arc
+                    ctx.beginPath();
+                    ctx.moveTo(leftHandX - 2, arcY + 3);
+                    ctx.lineTo((leftHandX + rightHandX) / 2 + Math.sin(t + 1) * 4, arcY + 1);
+                    ctx.lineTo(rightHandX + 2, arcY + 3);
+                    ctx.stroke();
+                }
+
+                // Thrust effect particles when firing
+                if (ninja.isShootingLightning && shootProgress > 0.3) {
+                    ctx.fillStyle = `rgba(0, 255, 255, ${(1 - shootProgress) * 0.8})`;
+                    for (let i = 0; i < 3; i++) {
+                        const px = x + 15 + shootProgress * 10 + i * 4;
+                        const py = y - 10 + bobY + (Math.random() - 0.5) * 6;
+                        ctx.fillRect(px, py, 3, 2);
+                    }
+                }
+            } else {
+                // === SWORD MODE - Original flaming sword ===
+                const slashProgress = ninja.isSlashing ? (1 - ninja.slashTimer / CONFIG.SLASH_DURATION) : 0;
+
+                // Sword swing angle: held backward, swings forward toward robots
+                let swordAngle;
+                if (ninja.isSlashing) {
+                    const eased = 1 - (1 - slashProgress) * (1 - slashProgress);
+                    swordAngle = -2.2 + eased * 2.6;
+                } else {
+                    swordAngle = -2.0 + Math.sin(flameTimer * 0.5) * 0.08;
+                }
+
+                const swordLength = 32;
+                const swordPivotX = x + 12;
+                const swordPivotY = y - 10 + bobY;
+
+                // Left arm (always visible)
+                ctx.fillStyle = CONFIG.COLORS.NINJA;
+                ctx.fillRect(x - 14, y - 12 + bobY, 5, 8);
+                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+                ctx.fillRect(x - 14, y - 6 + bobY, 4, 4);
+
+                // Right arm holding sword
+                ctx.save();
+                ctx.translate(swordPivotX, swordPivotY);
+                ctx.rotate(swordAngle);
+
+                // Arm
+                ctx.fillStyle = CONFIG.COLORS.NINJA;
+                ctx.fillRect(-4, -3, 10, 6);
+                // Hand gripping
+                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+                ctx.fillRect(4, -2, 5, 5);
+
+                // === FLAMING SWORD ===
+                // Handle
+                ctx.fillStyle = '#5d4037';
+                ctx.fillRect(8, -2, 6, 5);
+                ctx.fillStyle = '#8b0000';
+                ctx.fillRect(9, -1, 2, 3);
+                ctx.fillRect(12, -1, 2, 3);
+                // Guard
+                ctx.fillStyle = '#ffd700';
+                ctx.fillRect(6, -4, 3, 9);
+                ctx.fillStyle = '#ffab00';
+                ctx.fillRect(6, -1, 3, 3);
+
+                // Blade
+                ctx.fillStyle = '#b0bec5';
+                ctx.fillRect(14, -2, swordLength - 14, 5);
+                ctx.fillStyle = '#eceff1';
+                ctx.fillRect(14, -2, swordLength - 14, 2);
+                ctx.fillStyle = '#78909c';
+                ctx.fillRect(16, 0, swordLength - 18, 2);
+                // Blade tip
+                ctx.fillStyle = '#eceff1';
+                ctx.beginPath();
+                ctx.moveTo(swordLength - 2, -2);
+                ctx.lineTo(swordLength + 4, 1);
+                ctx.lineTo(swordLength - 2, 4);
+                ctx.fill();
+
+                // === FLAMES ALONG THE BLADE ===
+                const flicker = ((Date.now() / 50) % 4) - 2;
+                for (let i = 0; i < 4; i++) {
+                    const flameX = 18 + i * 5;
+                    ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+                    ctx.fillRect(flameX, -4 + (i % 2) * flicker, 3, 3);
+                    ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+                    ctx.fillRect(flameX, 3 - (i % 2) * flicker, 3, 3);
+                }
+
+                // Tip flame
+                const tipFlicker = ((Date.now() / 40) % 4) - 2;
+                ctx.fillStyle = CONFIG.COLORS.FLAME_TIP;
+                ctx.fillRect(swordLength, -4 - tipFlicker, 5, 5);
+                ctx.fillRect(swordLength + 2, 2 + tipFlicker * 0.5, 4, 4);
+                ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+                ctx.fillRect(swordLength + 2, -2 - tipFlicker * 0.5, 4, 4);
+                ctx.fillStyle = CONFIG.COLORS.FLAME_MID;
+                ctx.fillRect(swordLength + 1, 0, 3, 2);
+
                 ctx.restore();
+
+                // === SLASH TRAIL ===
+                if (ninja.isSlashing && slashProgress > 0.2) {
+                    ctx.save();
+                    for (let i = 0; i < 5; i++) {
+                        const segmentProgress = slashProgress - (i * 0.12);
+                        if (segmentProgress < 0) continue;
+                        const segmentEased = 1 - (1 - segmentProgress) * (1 - segmentProgress);
+                        const trailAngle = -2.2 + segmentEased * 2.6;
+                        const trailX = swordPivotX + Math.cos(trailAngle) * (swordLength + 4);
+                        const trailY = swordPivotY + Math.sin(trailAngle) * (swordLength + 4);
+                        const size = 6 + (5 - i) * 2;
+                        ctx.globalAlpha = (1 - i / 5) * 0.6;
+                        ctx.fillStyle = CONFIG.COLORS.FLAME_OUTER;
+                        ctx.fillRect(trailX - size/2, trailY - size/2, size, size);
+                    }
+                    ctx.globalAlpha = 1;
+                    ctx.restore();
+                }
             }
 
             ctx.restore();
