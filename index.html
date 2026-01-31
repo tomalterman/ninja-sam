@@ -1061,6 +1061,10 @@
             }
             if (ninja.lightningCooldown > 0) {
                 ninja.lightningCooldown -= dt;
+                // Play ready sound when lightning is recharged
+                if (ninja.lightningCooldown <= 0 && ninja.hasLightningPower) {
+                    Sound.play('powerup');
+                }
             }
 
             // Lightning shooting animation
