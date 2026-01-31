@@ -614,7 +614,12 @@
             animTimer: 0,
             hitReaction: 0,      // Timer for hit stagger animation
             deathAnim: 0,        // Timer for death animation
-            isDead: false
+            isDead: false,
+            // Shield power-up (stolen from tall robots)
+            hasShield: false,
+            shieldPickupAnim: 0,
+            shieldBashAnim: 0,
+            shieldBreakAnim: 0
         };
 
         // ==================== ENTITIES ====================
@@ -762,6 +767,10 @@
             ninja.isShootingLightning = false;
             ninja.shootTimer = 0;
             ninja.boltFired = false;
+            ninja.hasShield = false;
+            ninja.shieldPickupAnim = 0;
+            ninja.shieldBashAnim = 0;
+            ninja.shieldBreakAnim = 0;
 
             robots = [];
             fruits = [];
@@ -1101,6 +1110,36 @@
             if (ninja.hitReaction > 0) {
                 ninja.hitReaction -= dt;
             }
+
+            // Shield animation timers
+            if (ninja.shieldPickupAnim > 0) {
+                ninja.shieldPickupAnim -= dt;
+            }
+            if (ninja.shieldBashAnim > 0) {
+                ninja.shieldBashAnim -= dt;
+                // When bash animation ends, break the shield!
+                if (ninja.shieldBashAnim <= 0 && ninja.hasShield) {
+                    ninja.hasShield = false;
+                    ninja.shieldBreakAnim = 40;
+                    // Shield shatters into fragments!
+                    for (let j = 0; j < 15; j++) {
+                        const angle = (j / 15) * Math.PI * 2;
+                        particles.push({
+                            x: ninja.x + 18,
+                            y: ninja.y - 16,
+                            vx: Math.cos(angle) * (3 + Math.random() * 5),
+                            vy: Math.sin(angle) * (3 + Math.random() * 5),
+                            size: 4 + Math.random() * 6,
+                            color: Math.random() < 0.4 ? '#00ffff' : '#445566',
+                            life: 35 + Math.random() * 10
+                        });
+                    }
+                    Sound.play('damage');
+                }
+            }
+            if (ninja.shieldBreakAnim > 0) {
+                ninja.shieldBreakAnim -= dt;
+            }
         }
 
         // ==================== ROBOT SPAWNING & UPDATE ====================
@@ -1329,6 +1368,24 @@
                             });
                         }
                     }
+                    // Check if this is a tall shielded robot - steal the shield!
+                    if (robot.isTall && !ninja.hasShield) {
+                        ninja.hasShield = true;
+                        ninja.shieldPickupAnim = 30;
+                        Sound.play('powerup');
+                        // Create shield pickup particles (cyan/metallic flying to ninja)
+                        for (let j = 0; j < 12; j++) {
+                            particles.push({
+                                x: robot.x,
+                                y: robot.y - robot.height / 2,
+                                vx: (ninja.x - robot.x) / 15 + (Math.random() - 0.5) * 4,
+                                vy: -2 + (Math.random() - 0.5) * 4,
+                                size: 4 + Math.random() * 4,
+                                color: Math.random() < 0.5 ? '#00ffff' : '#556677',
+                                life: 30
+                            });
+                        }
+                    }
                     // Squash the robot!
                     destroyRobot(robot, i, true);
                     // Score: 75 for lightning, 50 for tall, 25 for small
@@ -1368,6 +1425,26 @@
 
                 // Check body collision (shields zap on contact for tall/lightning robots)
                 if (ninja.invincible <= 0 && boxCollision(ninjaBox, robotBox)) {
+                    // Shield bash! Shield protects ninja and destroys robot
+                    if (ninja.hasShield) {
+                        ninja.shieldBashAnim = 15;
+                        // Impact particles (sparks flying everywhere!)
+                        for (let j = 0; j < 12; j++) {
+                            particles.push({
+                                x: robot.x,
+                                y: robot.y - robot.height / 2,
+                                vx: (Math.random() - 0.5) * 14,
+                                vy: (Math.random() - 0.5) * 14,
+                                size: 2 + Math.random() * 5,
+                                color: Math.random() < 0.6 ? '#00ffff' : '#ffffff',
+                                life: 25
+                            });
+                        }
+                        destroyRobot(robot, i);
+                        addScore(30, robot.x, robot.y - robot.height);
+                        Sound.play('hit');
+                        continue;
+                    }
                     takeDamage();
                     // Extra zap effect for tall shielded robots and blue lightning robots
                     if (robot.isTall || robot.isLightning) {
@@ -2490,6 +2567,79 @@
                     ctx.globalAlpha = 1;
                     ctx.restore();
                 }
+            }
+
+            // === SHIELD (stolen from tall robots!) ===
+            if (ninja.hasShield || ninja.shieldBashAnim > 0) {
+                const shieldTime = Date.now() / 50;
+                const shieldFlicker = Math.sin(shieldTime * 3) * 0.3 + 0.7;
+
+                // Shield position (in front of Sam, facing right toward robots)
+                let shieldX = x + 18;
+                let shieldY = y - 16 + bobY;
+
+                // During bash animation, thrust shield forward
+                if (ninja.shieldBashAnim > 0) {
+                    const bashProgress = 1 - (ninja.shieldBashAnim / 15);
+                    const thrustOffset = bashProgress < 0.3 ? bashProgress * 20 : (1 - bashProgress) * 6;
+                    shieldX += thrustOffset;
+                }
+
+                // Right arm extended to hold shield
+                ctx.fillStyle = CONFIG.COLORS.NINJA;
+                ctx.fillRect(x + 8, y - 14 + bobY, 8, 10);
+                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
+                ctx.fillRect(shieldX - 12, y - 6 + bobY, 5, 5);
+
+                // Shield body (dark metallic ellipse)
+                ctx.fillStyle = '#334';
+                ctx.beginPath();
+                ctx.ellipse(shieldX, shieldY, 10, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Shield rim
+                ctx.strokeStyle = '#556';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(shieldX, shieldY, 10, 18, 0, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Electric glow surface
+                ctx.fillStyle = `rgba(0, 255, 255, ${shieldFlicker * 0.5})`;
+                ctx.beginPath();
+                ctx.ellipse(shieldX, shieldY, 8, 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Energy arcs (horizontal zigzag lines)
+                ctx.strokeStyle = `rgba(0, 255, 255, ${shieldFlicker})`;
+                ctx.lineWidth = 1.5;
+                for (let arc = 0; arc < 3; arc++) {
+                    const arcOffset = shieldTime * 2 + arc * 2;
+                    const arcY1 = shieldY - 12 + (arc * 10);
+                    ctx.beginPath();
+                    ctx.moveTo(shieldX - 6, arcY1);
+                    ctx.lineTo(shieldX + Math.sin(arcOffset) * 3, arcY1 + 3);
+                    ctx.lineTo(shieldX + 6, arcY1 + 5);
+                    ctx.stroke();
+                }
+
+                // Central energy core line
+                ctx.strokeStyle = `rgba(255, 255, 255, ${shieldFlicker * 0.8})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(shieldX, shieldY - 14);
+                ctx.lineTo(shieldX, shieldY + 14);
+                ctx.stroke();
+            }
+
+            // Shield pickup glow effect
+            if (ninja.shieldPickupAnim > 0) {
+                const glowAlpha = ninja.shieldPickupAnim / 30;
+                ctx.fillStyle = `rgba(0, 255, 255, ${glowAlpha * 0.4})`;
+                ctx.beginPath();
+                ctx.ellipse(x, y - ninja.height / 2, 20 + (30 - ninja.shieldPickupAnim),
+                            25 + (30 - ninja.shieldPickupAnim), 0, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             ctx.restore();
