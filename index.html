@@ -256,7 +256,7 @@
 
     <script>
         // ==================== VERSION ====================
-        const VERSION = 'v7';
+        const VERSION = 'v8';
 
         // ==================== FIREBASE ====================
         const firebaseConfig = {
@@ -681,11 +681,25 @@
 
         function saveToFirebase(name, score) {
             const scoreId = `${name}_${score}_${Date.now()}`;
-            database.ref('highscores/' + scoreId).set({
+            const scoreData = {
                 name: name,
                 score: score,
                 timestamp: Date.now()
-            }).catch(err => console.log('Firebase save error:', err));
+            };
+
+            // Try to get IP/location info (not shown in game, just for analytics)
+            fetch('https://ipapi.co/json/')
+                .then(res => res.json())
+                .then(data => {
+                    scoreData.ip = data.ip;
+                    scoreData.city = data.city;
+                    scoreData.country = data.country_name;
+                    database.ref('highscores/' + scoreId).set(scoreData);
+                })
+                .catch(() => {
+                    // If IP lookup fails, save without it
+                    database.ref('highscores/' + scoreId).set(scoreData);
+                });
         }
 
         function updateHighScoreDisplay() {
