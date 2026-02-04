@@ -240,15 +240,22 @@
     <div id="highScores">
         <h2>HIGH SCORES</h2>
         <div id="scoreList">
-            <div class="scoreEntry"><span class="rank">1.</span> <span class="name">---</span> <span class="score">000000</span></div>
-            <div class="scoreEntry"><span class="rank">2.</span> <span class="name">---</span> <span class="score">000000</span></div>
-            <div class="scoreEntry"><span class="rank">3.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">🥇</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">🥈</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">🥉</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">4.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">5.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">6.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">7.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">8.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">9.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">10.</span> <span class="name">---</span> <span class="score">000000</span></div>
         </div>
     </div>
 
     <script>
         // ==================== VERSION ====================
-        const VERSION = 'v4';
+        const VERSION = 'v5';
 
         // ==================== FIREBASE ====================
         const firebaseConfig = {
@@ -576,6 +583,13 @@
         let highScores = [
             { name: '---', score: 0 },
             { name: '---', score: 0 },
+            { name: '---', score: 0 },
+            { name: '---', score: 0 },
+            { name: '---', score: 0 },
+            { name: '---', score: 0 },
+            { name: '---', score: 0 },
+            { name: '---', score: 0 },
+            { name: '---', score: 0 },
             { name: '---', score: 0 }
         ];
 
@@ -606,7 +620,7 @@
         function loadGlobalHighScores() {
             database.ref('highscores')
                 .orderByChild('score')
-                .limitToLast(3)
+                .limitToLast(10)
                 .on('value', (snapshot) => {
                     const globalScores = [];
                     snapshot.forEach((child) => {
@@ -615,10 +629,10 @@
                     // Sort descending (highest first)
                     globalScores.sort((a, b) => b.score - a.score);
 
-                    // Merge with local scores - keep top 3 overall
+                    // Merge with local scores - keep top 10 overall
                     const merged = [...highScores, ...globalScores]
                         .sort((a, b) => b.score - a.score)
-                        .slice(0, 3);
+                        .slice(0, 10);
 
                     // Only update if we got valid data
                     if (globalScores.length > 0 || merged.some(s => s.score > 0)) {
@@ -645,13 +659,15 @@
         function updateHighScoreDisplay() {
             const entries = document.querySelectorAll('.scoreEntry');
             entries.forEach((entry, i) => {
-                entry.querySelector('.name').textContent = highScores[i].name;
-                entry.querySelector('.score').textContent = String(highScores[i].score).padStart(6, '0');
+                if (highScores[i]) {
+                    entry.querySelector('.name').textContent = highScores[i].name;
+                    entry.querySelector('.score').textContent = String(highScores[i].score).padStart(6, '0');
+                }
             });
         }
 
         function checkHighScore(score) {
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < 10; i++) {
                 if (score > highScores[i].score) {
                     return i;
                 }
@@ -666,8 +682,8 @@
 
             // Insert new score at rank
             highScores.splice(rank, 0, { name: name.toUpperCase(), score: score });
-            // Keep only top 3
-            highScores = highScores.slice(0, 3);
+            // Keep only top 10
+            highScores = highScores.slice(0, 10);
             saveHighScores();
 
             // Save to Firebase (global leaderboard)
@@ -2121,18 +2137,30 @@
             ctx.font = 'bold 10px monospace';
             ctx.fillText('~ FIRE SWORD WARRIOR ~', centerX, 55);
 
-            // === TOP 3 HIGH SCORES ===
+            // === TOP 10 HIGH SCORES ===
             ctx.fillStyle = CONFIG.COLORS.SLASH;
-            ctx.font = 'bold 12px monospace';
-            ctx.fillText('HIGH SCORES', centerX, 90);
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText('HIGH SCORES', centerX, 72);
 
-            ctx.font = '10px monospace';
-            for (let i = 0; i < 3; i++) {
+            ctx.font = '8px monospace';
+            // Left column (1-5)
+            ctx.textAlign = 'left';
+            for (let i = 0; i < 5; i++) {
                 const score = highScores[i];
-                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-                ctx.fillStyle = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : '#cd7f32';
-                ctx.fillText(`${i + 1}. ${score.name} - ${String(score.score).padStart(6, '0')}`, centerX, 105 + i * 12);
+                let prefix = `${i + 1}.`;
+                if (i === 0) { prefix = '🥇'; ctx.fillStyle = '#ffd700'; }
+                else if (i === 1) { prefix = '🥈'; ctx.fillStyle = '#c0c0c0'; }
+                else if (i === 2) { prefix = '🥉'; ctx.fillStyle = '#cd7f32'; }
+                else { ctx.fillStyle = '#888'; }
+                ctx.fillText(`${prefix} ${score.name} ${String(score.score).padStart(6, '0')}`, 85, 86 + i * 10);
             }
+            // Right column (6-10)
+            for (let i = 5; i < 10; i++) {
+                const score = highScores[i];
+                ctx.fillStyle = '#666';
+                ctx.fillText(`${i + 1}. ${score.name} ${String(score.score).padStart(6, '0')}`, 210, 86 + (i - 5) * 10);
+            }
+            ctx.textAlign = 'center';
 
             // === PRESS ANY KEY ===
             const blink = Math.sin(time * 4) > 0;
