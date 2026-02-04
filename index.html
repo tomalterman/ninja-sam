@@ -654,6 +654,7 @@
         let particles = [];
         let scorePopups = [];
         let lightningBolts = [];
+        let screenZaps = [];  // Full-screen lightning zap effects
 
         // Fruit types with colors
         const FRUIT_TYPES = [
@@ -807,6 +808,7 @@
             particles = [];
             scorePopups = [];
             lightningBolts = [];
+            screenZaps = [];
             fruitSpawnTimer = 0;
             nextFruitSpawnTime = 200;
         }
@@ -1023,6 +1025,14 @@
             // Update lightning bolts
             updateLightningBolts(dt);
 
+            // Update screen zaps
+            for (let i = screenZaps.length - 1; i >= 0; i--) {
+                screenZaps[i].life -= dt;
+                if (screenZaps[i].life <= 0) {
+                    screenZaps.splice(i, 1);
+                }
+            }
+
             // Update particles
             updateParticles(dt);
 
@@ -1092,29 +1102,9 @@
                 }
             }
 
-            // Slash or Lightning
+            // Slash cooldown
             if (ninja.slashCooldown > 0) {
                 ninja.slashCooldown -= dt;
-            }
-            if (ninja.lightningCooldown > 0) {
-                ninja.lightningCooldown -= dt;
-                // Play ready sound when lightning is recharged
-                if (ninja.lightningCooldown <= 0 && ninja.hasLightningPower) {
-                    Sound.play('powerup');
-                }
-            }
-
-            // Lightning shooting animation
-            if (ninja.isShootingLightning) {
-                ninja.shootTimer -= dt;
-                // Fire the bolt at the thrust moment (halfway through animation)
-                if (ninja.shootTimer <= 6 && !ninja.boltFired) {
-                    shootLightningBolt();
-                    ninja.boltFired = true;
-                }
-                if (ninja.shootTimer <= 0) {
-                    ninja.isShootingLightning = false;
-                }
             }
 
             if (game.keys.slash && !game.keys.slashUsed) {
@@ -1125,14 +1115,7 @@
                     ninja.goldenFistTimer = 60; // 1 second for full punch cycle
                     game.keys.slashUsed = true;
                     Sound.play('goldenPunch');
-                } else if (ninja.hasLightningPower && ninja.lightningCooldown <= 0 && !ninja.isShootingLightning) {
-                    // Start lightning shooting animation!
-                    ninja.isShootingLightning = true;
-                    ninja.shootTimer = 12; // Quick charge-and-thrust animation
-                    ninja.boltFired = false;
-                    ninja.lightningCooldown = 90; // 1.5 second cooldown
-                    game.keys.slashUsed = true;
-                } else if (!ninja.hasLightningPower && !ninja.hasGoldenFist && !ninja.isSlashing && ninja.slashCooldown <= 0) {
+                } else if (!ninja.hasGoldenFist && !ninja.isSlashing && ninja.slashCooldown <= 0) {
                     // Normal sword slash
                     ninja.isSlashing = true;
                     ninja.slashTimer = CONFIG.SLASH_DURATION;
@@ -1242,8 +1225,8 @@
                     // Don't spawn until 15 seconds into the game (900 frames)
                     isLightning = !isTall && game.survivalTime >= 900 && Math.random() < 0.15 + game.difficulty * 0.05;
                     // Golden robots are small and rare - stomp them for the golden fist power!
-                    // Don't spawn until 25 seconds into the game (1500 frames)
-                    isGolden = !isTall && !isLightning && game.survivalTime >= 1500 && Math.random() < 0.10 + game.difficulty * 0.03;
+                    // Don't spawn until 11 seconds into the game (660 frames)
+                    isGolden = !isTall && !isLightning && game.survivalTime >= 660 && Math.random() < 0.10 + game.difficulty * 0.03;
                 }
                 robots.push({
                     x: CONFIG.BASE_WIDTH + 20,
@@ -1441,7 +1424,6 @@
                     // Check if this is a golden robot - get the GOLDEN FIST!
                     if (robot.isGolden) {
                         ninja.hasGoldenFist = true;
-                        ninja.hasLightningPower = false; // Replace lightning power
                         ninja.goldenFistState = 'idle';
                         ninja.goldenFistX = 0;
                         Sound.play('powerup');
@@ -1479,23 +1461,46 @@
                         ninja.velocityY = CONFIG.JUMP_FORCE * 0.6;
                         continue;
                     }
-                    // Check if this is a lightning robot - gain power!
+                    // Check if this is a lightning robot - ZAP ALL ROBOTS ON SCREEN!
                     if (robot.isLightning) {
-                        ninja.hasLightningPower = true;
-                        ninja.hasGoldenFist = false; // Replace golden fist
-                        ninja.lightningCooldown = 0;
-                        Sound.play('powerup');
-                        // Create power-up effect particles
-                        for (let j = 0; j < 10; j++) {
-                            particles.push({
-                                x: ninja.x,
-                                y: ninja.y - ninja.height / 2,
-                                vx: (Math.random() - 0.5) * 8,
-                                vy: (Math.random() - 1) * 6,
-                                size: 3 + Math.random() * 4,
-                                color: Math.random() < 0.5 ? '#00ffff' : '#ffffff',
-                                life: 40
-                            });
+                        Sound.play('lightning');
+
+                        // Create horizontal lightning bolts effect
+                        const zapY = robot.y - robot.height / 2;
+                        screenZaps.push({
+                            x: robot.x,
+                            y: zapY,
+                            life: 30,
+                            maxLife: 30
+                        });
+
+                        // Zap ALL other robots on screen - 1000 points each!
+                        let zappedCount = 0;
+                        for (let j = robots.length - 1; j >= 0; j--) {
+                            if (j === i) continue; // Skip the lightning robot itself
+                            const target = robots[j];
+                            zappedCount++;
+                            // Create electric explosion particles at each robot
+                            for (let k = 0; k < 10; k++) {
+                                particles.push({
+                                    x: target.x,
+                                    y: target.y - target.height / 2,
+                                    vx: (Math.random() - 0.5) * 12,
+                                    vy: (Math.random() - 0.5) * 12,
+                                    size: 3 + Math.random() * 4,
+                                    color: Math.random() < 0.5 ? '#00ffff' : '#ffffff',
+                                    life: 25
+                                });
+                            }
+                            // 1000 points per zapped robot (ignores combo)
+                            addScore(1000, target.x, target.y - target.height, true);
+                            robots.splice(j, 1);
+                            // Adjust index since we removed a robot
+                            if (j < i) i--;
+                        }
+
+                        if (zappedCount > 0) {
+                            Sound.play('coinBurst');
                         }
                     }
                     // Check if this is a tall shielded robot - steal the shield!
@@ -1925,6 +1930,68 @@
             // Draw lightning bolts
             for (const bolt of lightningBolts) {
                 drawLightningBolt(bolt);
+            }
+
+            // Draw screen zaps (horizontal lightning across screen)
+            for (const zap of screenZaps) {
+                const alpha = zap.life / zap.maxLife;
+                const flash = Math.sin(Date.now() / 30) > 0 ? 1 : 0.5;
+                const segments = 12;
+                const seed = Date.now() / 50;
+
+                // Draw to left edge
+                ctx.strokeStyle = `rgba(0, 255, 255, ${alpha * flash})`;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(zap.x, zap.y);
+                for (let i = 1; i <= segments; i++) {
+                    const t = i / segments;
+                    const px = zap.x - zap.x * t;
+                    const py = zap.y + Math.sin(seed + i * 3) * 12;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Draw to right edge
+                ctx.beginPath();
+                ctx.moveTo(zap.x, zap.y);
+                for (let i = 1; i <= segments; i++) {
+                    const t = i / segments;
+                    const px = zap.x + (CONFIG.BASE_WIDTH - zap.x) * t;
+                    const py = zap.y + Math.sin(seed + i * 3 + 5) * 12;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Inner white line - left
+                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * flash * 0.9})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(zap.x, zap.y);
+                for (let i = 1; i <= segments; i++) {
+                    const t = i / segments;
+                    const px = zap.x - zap.x * t;
+                    const py = zap.y + Math.sin(seed + i * 3) * 12;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Inner white line - right
+                ctx.beginPath();
+                ctx.moveTo(zap.x, zap.y);
+                for (let i = 1; i <= segments; i++) {
+                    const t = i / segments;
+                    const px = zap.x + (CONFIG.BASE_WIDTH - zap.x) * t;
+                    const py = zap.y + Math.sin(seed + i * 3 + 5) * 12;
+                    ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Center glow
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * flash * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(zap.x, zap.y, 15 * alpha, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             // Draw fruit
@@ -2703,96 +2770,6 @@
                     }
                 }
 
-            } else if (ninja.hasLightningPower) {
-                // === LIGHTNING MODE - No sword, charging hands ===
-                const sparkle = Math.sin(Date.now() / 80) * 0.3 + 0.7;
-                const isReady = ninja.lightningCooldown <= 0; // Only show lightning when ready
-
-                // Shooting animation progress (0 = start charge, 1 = full thrust)
-                let shootProgress = 0;
-                if (ninja.isShootingLightning) {
-                    // First half: hands draw inward. Second half: thrust forward
-                    const animProgress = 1 - (ninja.shootTimer / 12);
-                    if (animProgress < 0.5) {
-                        // Drawing hands inward
-                        shootProgress = -animProgress * 2; // -1 to 0
-                    } else {
-                        // Thrusting forward
-                        shootProgress = (animProgress - 0.5) * 2; // 0 to 1
-                    }
-                }
-
-                // Hand positions based on animation
-                const baseHandX = x + 10;
-                const handY = y - 10 + bobY;
-                let leftHandX, rightHandX;
-
-                if (shootProgress < 0) {
-                    // Charging: hands draw toward center
-                    leftHandX = x - 8 + (-shootProgress) * 6;
-                    rightHandX = x + 8 - (-shootProgress) * 6;
-                } else if (shootProgress > 0) {
-                    // Thrusting: hands push forward together
-                    leftHandX = x + shootProgress * 12;
-                    rightHandX = x + shootProgress * 12;
-                } else {
-                    // Idle pose: hands at sides
-                    leftHandX = x - 10;
-                    rightHandX = x + 10;
-                }
-
-                // Left arm
-                ctx.fillStyle = CONFIG.COLORS.NINJA;
-                ctx.fillRect(leftHandX - 5, y - 12 + bobY, 6, 8);
-                // Left hand
-                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
-                ctx.fillRect(leftHandX - 4, y - 6 + bobY, 5, 5);
-                // Lightning charge effect on left hand - ONLY when ready
-                if (isReady) {
-                    ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
-                    ctx.fillRect(leftHandX - 3, y - 5 + bobY, 3, 3);
-                }
-
-                // Right arm
-                ctx.fillStyle = CONFIG.COLORS.NINJA;
-                ctx.fillRect(rightHandX - 1, y - 12 + bobY, 6, 8);
-                // Right hand
-                ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
-                ctx.fillRect(rightHandX - 1, y - 6 + bobY, 5, 5);
-                // Lightning charge effect on right hand - ONLY when ready
-                if (isReady) {
-                    ctx.fillStyle = `rgba(0, 255, 255, ${sparkle})`;
-                    ctx.fillRect(rightHandX, y - 5 + bobY, 3, 3);
-                }
-
-                // Crackling lightning between hands - ONLY when ready (or during charge animation)
-                if (isReady && (!ninja.isShootingLightning || shootProgress < 0)) {
-                    ctx.strokeStyle = `rgba(0, 255, 255, ${sparkle * 0.8})`;
-                    ctx.lineWidth = 1;
-                    const arcY = y - 8 + bobY;
-                    const t = Date.now() / 40;
-                    ctx.beginPath();
-                    ctx.moveTo(leftHandX, arcY);
-                    ctx.lineTo((leftHandX + rightHandX) / 2 + Math.sin(t) * 3, arcY - 3 + Math.sin(t * 1.5) * 2);
-                    ctx.lineTo(rightHandX, arcY);
-                    ctx.stroke();
-                    // Extra arc
-                    ctx.beginPath();
-                    ctx.moveTo(leftHandX - 2, arcY + 3);
-                    ctx.lineTo((leftHandX + rightHandX) / 2 + Math.sin(t + 1) * 4, arcY + 1);
-                    ctx.lineTo(rightHandX + 2, arcY + 3);
-                    ctx.stroke();
-                }
-
-                // Thrust effect particles when firing
-                if (ninja.isShootingLightning && shootProgress > 0.3) {
-                    ctx.fillStyle = `rgba(0, 255, 255, ${(1 - shootProgress) * 0.8})`;
-                    for (let i = 0; i < 3; i++) {
-                        const px = x + 15 + shootProgress * 10 + i * 4;
-                        const py = y - 10 + bobY + (Math.random() - 0.5) * 6;
-                        ctx.fillRect(px, py, 3, 2);
-                    }
-                }
             } else {
                 // === SWORD MODE - Original flaming sword ===
                 const slashProgress = ninja.isSlashing ? (1 - ninja.slashTimer / CONFIG.SLASH_DURATION) : 0;
