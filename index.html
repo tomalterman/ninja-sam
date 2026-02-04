@@ -1274,9 +1274,10 @@
                     robot.animFrame = (robot.animFrame + 1) % 4;
                 }
 
-                // Remove if off screen
+                // Remove if off screen - lose combo!
                 if (robot.x < -robot.width) {
                     robots.splice(i, 1);
+                    game.combo = 1;
                 }
             }
         }
@@ -1471,8 +1472,8 @@
                                 life: 35
                             });
                         }
-                        // BONUS: 1000 points for golden robots!
-                        addScore(1000, robot.x, robot.y - robot.height - 10);
+                        // BONUS: 1000 points for golden robots! (not affected by combo)
+                        addScore(1000, robot.x, robot.y - robot.height - 10, true);
                         destroyRobot(robot, i, true);
                         // Bounce up
                         ninja.velocityY = CONFIG.JUMP_FORCE * 0.6;
@@ -1796,8 +1797,8 @@
             }
         }
 
-        function addScore(points, x, y) {
-            const actualPoints = points * game.combo;
+        function addScore(points, x, y, ignoreCombo = false) {
+            const actualPoints = ignoreCombo ? points : points * game.combo;
             game.score += actualPoints;
 
             // Increase combo
