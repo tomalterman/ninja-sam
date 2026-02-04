@@ -547,7 +547,10 @@
                 jump: false,
                 slash: false,
                 slashUsed: false  // Prevents holding key to spam
-            }
+            },
+
+            // Secret debug: queue next robot type ('golden', 'lightning', or null)
+            nextSpecialRobot: null
         };
 
         // ==================== HIGH SCORES ====================
@@ -850,6 +853,13 @@
                 if (e.code === 'KeyS' || e.code === 'KeyD' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
                     e.preventDefault();
                     game.keys.slash = true;
+                }
+                // Secret keys: queue special robots
+                if (e.code === 'KeyG') {
+                    game.nextSpecialRobot = 'golden';
+                }
+                if (e.code === 'KeyB') {
+                    game.nextSpecialRobot = 'lightning';
                 }
             });
 
@@ -1214,14 +1224,27 @@
                 const maxInterval = Math.max(30, CONFIG.MAX_SPAWN_INTERVAL - game.difficulty * 30);
                 game.nextSpawnTime = minInterval + Math.random() * (maxInterval - minInterval);
 
-                // Spawn robot
-                const isTall = Math.random() < 0.3 + game.difficulty * 0.1;
-                // Blue lightning robots are small and rarer - stomp them for lightning power!
-                // Don't spawn until 15 seconds into the game (900 frames)
-                const isLightning = !isTall && game.survivalTime >= 900 && Math.random() < 0.15 + game.difficulty * 0.05;
-                // Golden robots are small and rare - stomp them for the golden fist power!
-                // Don't spawn until 25 seconds into the game (1500 frames)
-                const isGolden = !isTall && !isLightning && game.survivalTime >= 1500 && Math.random() < 0.10 + game.difficulty * 0.03;
+                // Spawn robot - check for secret key override first
+                let isTall = false;
+                let isLightning = false;
+                let isGolden = false;
+
+                if (game.nextSpecialRobot === 'golden') {
+                    isGolden = true;
+                    game.nextSpecialRobot = null;
+                } else if (game.nextSpecialRobot === 'lightning') {
+                    isLightning = true;
+                    game.nextSpecialRobot = null;
+                } else {
+                    // Normal random spawning
+                    isTall = Math.random() < 0.3 + game.difficulty * 0.1;
+                    // Blue lightning robots are small and rarer - stomp them for lightning power!
+                    // Don't spawn until 15 seconds into the game (900 frames)
+                    isLightning = !isTall && game.survivalTime >= 900 && Math.random() < 0.15 + game.difficulty * 0.05;
+                    // Golden robots are small and rare - stomp them for the golden fist power!
+                    // Don't spawn until 25 seconds into the game (1500 frames)
+                    isGolden = !isTall && !isLightning && game.survivalTime >= 1500 && Math.random() < 0.10 + game.difficulty * 0.03;
+                }
                 robots.push({
                     x: CONFIG.BASE_WIDTH + 20,
                     y: CONFIG.GROUND_Y,
@@ -1638,8 +1661,8 @@
             if (ninja.hasGoldenFist && ninja.goldenFistState !== 'idle') {
                 const fistX = ninja.x + 20 + ninja.goldenFistX;
                 const fistY = ninja.y - 16;
-                const fistWidth = 30;
-                const fistHeight = 28;
+                const fistWidth = 40;  // Big fist!
+                const fistHeight = 34;
                 const fistBox = { x: fistX - fistWidth/2, y: fistY - fistHeight/2, width: fistWidth, height: fistHeight };
 
                 for (let i = robots.length - 1; i >= 0; i--) {
@@ -2594,69 +2617,89 @@
                 ctx.lineTo(springEndX, springY - 1);
                 ctx.stroke();
 
-                // === THE GOLDEN FIST (about Sam's size - BIG!) ===
+                // === THE GOLDEN FIST - BIG CARTOON FIST! ===
                 const fistX = springEndX;
                 const fistY = springY;
-                const fistSize = 28; // Big fist!
+                const fistW = 38; // Wide fist
+                const fistH = 32; // Tall fist
 
-                // Fist base (dark gold)
+                // Glow behind fist (draw first)
+                ctx.fillStyle = `rgba(255, 215, 0, ${sparkle * 0.4})`;
+                ctx.beginPath();
+                ctx.ellipse(fistX + fistW/2, fistY, fistW/2 + 10, fistH/2 + 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Wrist (connects to spring)
                 ctx.fillStyle = '#b8860b';
-                ctx.fillRect(fistX - 4, fistY - fistSize/2 + 2, fistSize + 8, fistSize - 4);
-
-                // Main fist body (bright gold)
-                ctx.fillStyle = `rgba(255, 215, 0, ${shimmer})`;
-                ctx.fillRect(fistX, fistY - fistSize/2 + 4, fistSize, fistSize - 8);
-
-                // Fist highlights (lighter gold)
-                ctx.fillStyle = `rgba(255, 236, 139, ${sparkle})`;
-                ctx.fillRect(fistX + 2, fistY - fistSize/2 + 6, fistSize - 6, 4);
-                ctx.fillRect(fistX + fistSize - 6, fistY - fistSize/2 + 6, 4, fistSize - 14);
-
-                // Knuckle details (4 bumps on front)
-                ctx.fillStyle = '#daa520';
-                for (let k = 0; k < 4; k++) {
-                    const ky = fistY - fistSize/2 + 6 + k * 5;
-                    ctx.fillRect(fistX + fistSize - 2, ky, 6, 4);
-                }
-
-                // Knuckle highlights
-                ctx.fillStyle = `rgba(255, 255, 255, ${sparkle * 0.6})`;
-                for (let k = 0; k < 4; k++) {
-                    const ky = fistY - fistSize/2 + 7 + k * 5;
-                    ctx.fillRect(fistX + fistSize - 1, ky, 2, 2);
-                }
-
-                // Wrist band (connects to spring)
-                ctx.fillStyle = '#8b6914';
-                ctx.fillRect(fistX - 6, fistY - 6, 8, 12);
+                ctx.fillRect(fistX - 4, fistY - 8, 12, 16);
                 ctx.fillStyle = '#ffd700';
-                ctx.fillRect(fistX - 5, fistY - 5, 6, 10);
+                ctx.fillRect(fistX - 2, fistY - 6, 8, 12);
+
+                // Main fist body (back of hand) - rounded rectangle
+                ctx.fillStyle = '#b8860b';
+                ctx.beginPath();
+                ctx.roundRect(fistX + 4, fistY - fistH/2, fistW - 8, fistH, 6);
+                ctx.fill();
+
+                ctx.fillStyle = `rgba(255, 215, 0, ${shimmer})`;
+                ctx.beginPath();
+                ctx.roundRect(fistX + 6, fistY - fistH/2 + 2, fistW - 12, fistH - 4, 5);
+                ctx.fill();
+
+                // Four curled fingers (the punching part!)
+                const fingerW = 8;
+                const fingerH = 14;
+                for (let f = 0; f < 4; f++) {
+                    const fy = fistY - fistH/2 + 4 + f * 7;
+                    // Finger base (dark)
+                    ctx.fillStyle = '#b8860b';
+                    ctx.beginPath();
+                    ctx.roundRect(fistX + fistW - 10, fy, fingerW + 6, fingerH - 8, 3);
+                    ctx.fill();
+                    // Finger top (bright gold)
+                    ctx.fillStyle = `rgba(255, 215, 0, ${shimmer})`;
+                    ctx.beginPath();
+                    ctx.roundRect(fistX + fistW - 8, fy + 1, fingerW + 2, fingerH - 10, 2);
+                    ctx.fill();
+                    // Knuckle highlight
+                    ctx.fillStyle = `rgba(255, 255, 255, ${sparkle * 0.7})`;
+                    ctx.fillRect(fistX + fistW - 6, fy + 2, 3, 2);
+                }
+
+                // Thumb (on top, curled over fingers)
+                ctx.fillStyle = '#b8860b';
+                ctx.beginPath();
+                ctx.ellipse(fistX + fistW/2 + 4, fistY - fistH/2 - 2, 10, 6, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = `rgba(255, 215, 0, ${shimmer})`;
+                ctx.beginPath();
+                ctx.ellipse(fistX + fistW/2 + 4, fistY - fistH/2 - 2, 8, 4, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Hand highlight (shiny!)
+                ctx.fillStyle = `rgba(255, 236, 139, ${sparkle})`;
+                ctx.fillRect(fistX + 10, fistY - fistH/2 + 4, fistW - 24, 4);
+                ctx.fillRect(fistX + fistW - 18, fistY - fistH/2 + 4, 4, fistH - 10);
 
                 // Sparkle particles when punching
                 if (ninja.goldenFistState === 'punching') {
                     ctx.fillStyle = `rgba(255, 255, 255, ${sparkle * 0.9})`;
-                    for (let sp = 0; sp < 3; sp++) {
-                        const spX = fistX + fistSize + 5 + sp * 8 + Math.random() * 4;
-                        const spY = fistY + (Math.random() - 0.5) * fistSize;
-                        ctx.fillRect(spX, spY, 4, 2);
+                    for (let sp = 0; sp < 4; sp++) {
+                        const spX = fistX + fistW + 5 + sp * 10 + Math.random() * 4;
+                        const spY = fistY + (Math.random() - 0.5) * fistH;
+                        ctx.fillRect(spX, spY, 5, 3);
                     }
                     // Speed lines
-                    ctx.strokeStyle = `rgba(255, 215, 0, 0.6)`;
-                    ctx.lineWidth = 2;
-                    for (let sl = 0; sl < 4; sl++) {
-                        const slY = fistY - fistSize/2 + 4 + sl * 6;
+                    ctx.strokeStyle = `rgba(255, 215, 0, 0.7)`;
+                    ctx.lineWidth = 3;
+                    for (let sl = 0; sl < 5; sl++) {
+                        const slY = fistY - fistH/2 + 4 + sl * 7;
                         ctx.beginPath();
-                        ctx.moveTo(fistX - 10 - Math.random() * 20, slY);
+                        ctx.moveTo(fistX - 15 - Math.random() * 25, slY);
                         ctx.lineTo(fistX - 4, slY);
                         ctx.stroke();
                     }
                 }
-
-                // Glow effect around fist
-                ctx.fillStyle = `rgba(255, 215, 0, ${sparkle * 0.3})`;
-                ctx.beginPath();
-                ctx.arc(fistX + fistSize/2, fistY, fistSize/2 + 6, 0, Math.PI * 2);
-                ctx.fill();
 
             } else if (ninja.hasLightningPower) {
                 // === LIGHTNING MODE - No sword, charging hands ===
