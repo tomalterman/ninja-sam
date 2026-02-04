@@ -188,6 +188,7 @@
             font-size: 14px;
             margin: 4px 0;
             transition: all 0.3s;
+            color: #888;
         }
 
         .scoreEntry.new {
@@ -196,16 +197,16 @@
         }
 
         .scoreEntry .rank {
-            color: #ff4757;
+            color: #666;
         }
 
         .scoreEntry .name {
-            color: #5c6bc0;
+            color: #aaa;
             margin: 0 10px;
         }
 
         .scoreEntry .score {
-            color: #fff;
+            color: #999;
         }
 
         @keyframes newScore {
@@ -255,7 +256,7 @@
 
     <script>
         // ==================== VERSION ====================
-        const VERSION = 'v6';
+        const VERSION = 'v7';
 
         // ==================== FIREBASE ====================
         const firebaseConfig = {
@@ -336,9 +337,13 @@
         // ==================== SOUND SYSTEM ====================
         const Sound = {
             ctx: null,
-            enabled: true,
+            enabled: localStorage.getItem('ninjaSamSound') !== 'off',
 
             init() {
+                // Update mute button to match saved state
+                const muteBtn = document.getElementById('muteBtn');
+                if (muteBtn) muteBtn.textContent = this.enabled ? '🔊' : '🔇';
+
                 // Create audio context on first user interaction
                 const initAudio = () => {
                     if (!this.ctx) {
@@ -1021,6 +1026,7 @@
                 e.stopPropagation();
                 Sound.enabled = !Sound.enabled;
                 muteBtn.textContent = Sound.enabled ? '🔊' : '🔇';
+                localStorage.setItem('ninjaSamSound', Sound.enabled ? 'on' : 'off');
             });
             muteBtn.addEventListener('touchstart', (e) => {
                 e.stopPropagation(); // Prevent triggering game actions
