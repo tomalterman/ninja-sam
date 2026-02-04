@@ -1699,7 +1699,8 @@
                             // Small robots and lightning robots get SMASHED!
                             destroyRobot(robot, i);
                             Sound.play('goldenHit');
-                            const scoreValue = robot.isLightning ? 75 : (robot.isGolden ? 100 : 50);
+                            // Golden robots only give 1000 bonus when STOMPED, not punched
+                            const scoreValue = robot.isLightning ? 75 : 50;
                             addScore(scoreValue, robot.x, robot.y - robot.height);
                             // Gold impact particles
                             for (let j = 0; j < 8; j++) {
