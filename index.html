@@ -255,7 +255,7 @@
 
     <script>
         // ==================== VERSION ====================
-        const VERSION = 'v5';
+        const VERSION = 'v6';
 
         // ==================== FIREBASE ====================
         const firebaseConfig = {
@@ -613,8 +613,36 @@
             }
             updateHighScoreDisplay();
 
-            // Then load from Firebase (global scores)
-            loadGlobalHighScores();
+            // Then load from Firebase and sync local scores
+            syncWithFirebase();
+        }
+
+        function syncWithFirebase() {
+            // Store local scores to sync
+            const localScores = highScores.filter(s => s.score > 0);
+
+            database.ref('highscores')
+                .orderByChild('score')
+                .limitToLast(50)  // Get more to check for duplicates
+                .once('value', (snapshot) => {
+                    const globalScores = [];
+                    snapshot.forEach((child) => {
+                        globalScores.push(child.val());
+                    });
+
+                    // Upload any local scores not already in Firebase
+                    localScores.forEach(local => {
+                        const exists = globalScores.some(g =>
+                            g.name === local.name && g.score === local.score
+                        );
+                        if (!exists && local.name !== '---') {
+                            saveToFirebase(local.name, local.score);
+                        }
+                    });
+
+                    // Now listen for real-time updates
+                    loadGlobalHighScores();
+                });
         }
 
         function loadGlobalHighScores() {
@@ -629,14 +657,13 @@
                     // Sort descending (highest first)
                     globalScores.sort((a, b) => b.score - a.score);
 
-                    // Merge with local scores - keep top 10 overall
-                    const merged = [...highScores, ...globalScores]
-                        .sort((a, b) => b.score - a.score)
-                        .slice(0, 10);
-
-                    // Only update if we got valid data
-                    if (globalScores.length > 0 || merged.some(s => s.score > 0)) {
-                        highScores = merged;
+                    // Use global scores as the source of truth
+                    if (globalScores.length > 0) {
+                        // Pad with empty slots if less than 10
+                        while (globalScores.length < 10) {
+                            globalScores.push({ name: '---', score: 0 });
+                        }
+                        highScores = globalScores;
                         saveHighScores();
                         updateHighScoreDisplay();
                     }
