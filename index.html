@@ -220,6 +220,9 @@
             100% { filter: blur(0); transform: scale(1); opacity: 1; }
         }
     </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
     <div id="gameContainer">
@@ -245,7 +248,20 @@
 
     <script>
         // ==================== VERSION ====================
-        const VERSION = 'v2';
+        const VERSION = 'v3';
+
+        // ==================== FIREBASE ====================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCQz3p_-MUVQ0m9dZCuXRl7HTBov5HAMCU",
+            authDomain: "sam-ninja-3f2ce.firebaseapp.com",
+            databaseURL: "https://sam-ninja-3f2ce-default-rtdb.firebaseio.com",
+            projectId: "sam-ninja-3f2ce",
+            storageBucket: "sam-ninja-3f2ce.firebasestorage.app",
+            messagingSenderId: "439758161195",
+            appId: "1:439758161195:web:7f66014f77396f6cf1f16e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
 
         // ==================== GAME CONFIGURATION ====================
         const CONFIG = {
@@ -576,15 +592,54 @@
         };
 
         function loadHighScores() {
+            // Load from local storage first (fast)
             const saved = localStorage.getItem('ninjaSamHighScores');
             if (saved) {
                 highScores = JSON.parse(saved);
             }
             updateHighScoreDisplay();
+
+            // Then load from Firebase (global scores)
+            loadGlobalHighScores();
+        }
+
+        function loadGlobalHighScores() {
+            database.ref('highscores')
+                .orderByChild('score')
+                .limitToLast(3)
+                .on('value', (snapshot) => {
+                    const globalScores = [];
+                    snapshot.forEach((child) => {
+                        globalScores.push(child.val());
+                    });
+                    // Sort descending (highest first)
+                    globalScores.sort((a, b) => b.score - a.score);
+
+                    // Merge with local scores - keep top 3 overall
+                    const merged = [...highScores, ...globalScores]
+                        .sort((a, b) => b.score - a.score)
+                        .slice(0, 3);
+
+                    // Only update if we got valid data
+                    if (globalScores.length > 0 || merged.some(s => s.score > 0)) {
+                        highScores = merged;
+                        saveHighScores();
+                        updateHighScoreDisplay();
+                    }
+                });
         }
 
         function saveHighScores() {
             localStorage.setItem('ninjaSamHighScores', JSON.stringify(highScores));
+        }
+
+        function saveToFirebase(name, score) {
+            const scoreId = `${name}_${score}_${Date.now()}`;
+            database.ref('highscores/' + scoreId).set({
+                name: name,
+                score: score,
+                timestamp: Date.now()
+            }).catch(err => console.log('Firebase save error:', err));
         }
 
         function updateHighScoreDisplay() {
@@ -614,6 +669,9 @@
             // Keep only top 3
             highScores = highScores.slice(0, 3);
             saveHighScores();
+
+            // Save to Firebase (global leaderboard)
+            saveToFirebase(name.toUpperCase(), score);
 
             // Animate the new entry
             updateHighScoreDisplay();
