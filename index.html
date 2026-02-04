@@ -244,6 +244,9 @@
     </div>
 
     <script>
+        // ==================== VERSION ====================
+        const VERSION = 'v1';
+
         // ==================== GAME CONFIGURATION ====================
         const CONFIG = {
             // Base resolution (SNES-style)
@@ -2077,6 +2080,12 @@
                 ctx.font = 'bold 10px monospace';
                 ctx.fillText('PRESS ANY KEY TO START', centerX, CONFIG.GROUND_Y + 20);
             }
+
+            // === VERSION ===
+            ctx.fillStyle = '#666';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(VERSION, 4, CONFIG.BASE_HEIGHT - 4);
         }
 
         function drawLightningBolt(ctx, x1, y1, x2, y2, seed) {
