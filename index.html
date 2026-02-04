@@ -248,7 +248,7 @@
 
     <script>
         // ==================== VERSION ====================
-        const VERSION = 'v3';
+        const VERSION = 'v4';
 
         // ==================== FIREBASE ====================
         const firebaseConfig = {
@@ -888,7 +888,10 @@
                 // Handle high score name entry
                 if (game.gameOver && game.enteringName) {
                     e.preventDefault();
-                    if (e.code === 'Enter' && game.playerName.length === 3) {
+                    if (e.code === 'Escape') {
+                        // Skip adding to leaderboard
+                        game.enteringName = false;
+                    } else if (e.code === 'Enter' && game.playerName.length === 3) {
                         // Submit name
                         addHighScore(game.playerName, game.score, game.newHighScoreRank);
                         game.enteringName = false;
@@ -3622,6 +3625,11 @@
                 // Draw on-screen keyboard
                 drawTouchKeyboard();
 
+                // Skip option
+                ctx.fillStyle = '#666';
+                ctx.font = '8px monospace';
+                ctx.fillText('ESC to skip', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT - 8);
+
             } else {
                 // Standard game over (no high score)
                 ctx.fillStyle = CONFIG.COLORS.HEALTH;
@@ -3675,18 +3683,27 @@
                 ctx.fillText(touchKeyboard.letters[i], x + btnSize/2, y + btnSize/2 + 4);
             }
 
-            // Bottom row: DEL and OK buttons
+            // Bottom row: DEL, SKIP, and OK buttons
             const bottomY = startY + 3 * (btnSize + gap);
 
             // Backspace button
             const bsX = startX;
             ctx.fillStyle = '#833';
-            ctx.fillRect(bsX, bottomY, btnSize * 2 + gap, btnSize);
+            ctx.fillRect(bsX, bottomY, btnSize * 2, btnSize);
             ctx.fillStyle = '#a55';
-            ctx.fillRect(bsX, bottomY, btnSize * 2 + gap, 2);
+            ctx.fillRect(bsX, bottomY, btnSize * 2, 2);
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 10px monospace';
-            ctx.fillText('DEL', bsX + (btnSize * 2 + gap) / 2, bottomY + btnSize/2 + 4);
+            ctx.fillText('DEL', bsX + btnSize, bottomY + btnSize/2 + 4);
+
+            // SKIP button
+            const skipX = startX + 2 * (btnSize + gap) + gap;
+            ctx.fillStyle = '#555';
+            ctx.fillRect(skipX, bottomY, btnSize * 3, btnSize);
+            ctx.fillStyle = '#777';
+            ctx.fillRect(skipX, bottomY, btnSize * 3, 2);
+            ctx.fillStyle = '#ccc';
+            ctx.fillText('SKIP', skipX + (btnSize * 3) / 2, bottomY + btnSize/2 + 4);
 
             // OK button (only if 3 letters entered)
             const okX = startX + 6 * (btnSize + gap);
@@ -3738,11 +3755,19 @@
 
             // Check backspace (DEL)
             const bsX = startX;
-            if (canvasX >= bsX && canvasX < bsX + btnSize * 2 + gap &&
+            if (canvasX >= bsX && canvasX < bsX + btnSize * 2 &&
                 canvasY >= bottomY && canvasY < bottomY + btnSize) {
                 if (game.playerName.length > 0) {
                     game.playerName = game.playerName.slice(0, -1);
                 }
+                return true;
+            }
+
+            // Check SKIP button
+            const skipX = startX + 2 * (btnSize + gap) + gap;
+            if (canvasX >= skipX && canvasX < skipX + btnSize * 3 &&
+                canvasY >= bottomY && canvasY < bottomY + btnSize) {
+                game.enteringName = false;
                 return true;
             }
 
