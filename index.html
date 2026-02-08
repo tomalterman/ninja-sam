@@ -365,7 +365,7 @@
                 unlockScore: 5000,
                 backgroundType: 'jungle',
                 colors: {
-                    sky: '#87CEEB',
+                    sky: '#4A8B5C',
                     ground: '#5C4033',
                     groundTop: '#228B22',
                     groundEdge: '#32CD32',
@@ -2873,100 +2873,206 @@
         function drawJungleBackground() {
             const ctx = game.ctx;
             const time = Date.now() / 1000;
+            const GY = CONFIG.GROUND_Y;
 
-            // Sun
-            ctx.fillStyle = '#FFD700';
+            // === SKY LAYER: sun peeking through canopy gaps ===
+            // Sun glow visible through canopy
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.08)';
             ctx.beginPath();
-            ctx.arc(320, 40, 22, 0, Math.PI * 2);
+            ctx.arc(320, 30, 50, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = '#FFF8DC';
+            ctx.fillStyle = 'rgba(255, 255, 200, 0.12)';
             ctx.beginPath();
-            ctx.arc(320, 40, 14, 0, Math.PI * 2);
-            ctx.fill();
-            // Sun rays
-            ctx.fillStyle = 'rgba(255, 215, 0, 0.15)';
-            ctx.beginPath();
-            ctx.arc(320, 40, 35, 0, Math.PI * 2);
+            ctx.arc(320, 30, 28, 0, Math.PI * 2);
             ctx.fill();
 
-            // Clouds (white fluffy)
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            for (const c of background.clouds) {
+            // === FAR BACKGROUND: dense dark tree wall ===
+            ctx.fillStyle = '#1B4D2E';
+            ctx.fillRect(0, 50, CONFIG.BASE_WIDTH, GY - 50);
+            // Bumpy treeline silhouette at top
+            for (let x = 0; x < CONFIG.BASE_WIDTH; x += 12) {
+                const h = 15 + Math.sin(x * 0.08) * 8 + Math.cos(x * 0.15) * 5;
+                ctx.fillRect(x, 50 - h, 14, h);
+            }
+
+            // Far tree canopy circles for organic shape
+            ctx.fillStyle = '#1B5E30';
+            for (let x = 8; x < CONFIG.BASE_WIDTH; x += 22) {
+                const r = 12 + (x * 7 % 9);
                 ctx.beginPath();
-                ctx.arc(c.x + c.width/2, c.y, c.width/4, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(c.x + c.width/3, c.y + 3, c.width/5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(c.x + c.width*2/3, c.y + 3, c.width/5, 0, Math.PI * 2);
+                ctx.arc(x, 48 - (x * 3 % 8), r, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // Rolling green hills (instead of mountains)
+            // === MID-GROUND: rolling hills with thick undergrowth ===
             for (const m of background.mountains) {
-                ctx.fillStyle = '#2E8B57';
+                ctx.fillStyle = '#256B3A';
                 ctx.beginPath();
-                ctx.moveTo(m.x, CONFIG.GROUND_Y);
-                ctx.quadraticCurveTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height, m.x + m.width, CONFIG.GROUND_Y);
+                ctx.moveTo(m.x - 10, GY);
+                ctx.quadraticCurveTo(m.x + m.width / 2, GY - m.height, m.x + m.width + 10, GY);
                 ctx.fill();
-
-                // Lighter highlight on top
-                ctx.fillStyle = '#3CB371';
+                ctx.fillStyle = '#2E8B47';
                 ctx.beginPath();
-                ctx.moveTo(m.x + m.width * 0.2, CONFIG.GROUND_Y);
-                ctx.quadraticCurveTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height * 0.9, m.x + m.width * 0.8, CONFIG.GROUND_Y);
+                ctx.moveTo(m.x + m.width * 0.15, GY);
+                ctx.quadraticCurveTo(m.x + m.width / 2, GY - m.height * 0.85, m.x + m.width * 0.85, GY);
                 ctx.fill();
             }
 
-            // Tropical trees (instead of buildings)
+            // === MAIN TREES: thick trunks with massive canopies ===
             for (let bi = 0; bi < background.buildings.length; bi++) {
                 const b = background.buildings[bi];
                 const tx = b.x + b.width / 2;
                 const treeH = b.height;
 
-                // Trunk
-                ctx.fillStyle = '#8B4513';
-                ctx.fillRect(tx - 4, CONFIG.GROUND_Y - treeH, 8, treeH);
-                // Trunk texture
-                ctx.fillStyle = '#6B3410';
-                ctx.fillRect(tx - 2, CONFIG.GROUND_Y - treeH + 5, 2, treeH - 10);
-                ctx.fillRect(tx + 1, CONFIG.GROUND_Y - treeH + 10, 2, treeH - 15);
+                // Thick trunk with roots
+                const trunkW = 10;
+                ctx.fillStyle = '#5C3317';
+                ctx.fillRect(tx - trunkW/2, GY - treeH, trunkW, treeH);
+                // Exposed roots
+                ctx.fillStyle = '#4A2810';
+                ctx.fillRect(tx - trunkW, GY - 6, trunkW * 2.5, 6);
+                ctx.fillRect(tx - trunkW - 4, GY - 3, 6, 3);
+                ctx.fillRect(tx + trunkW + 1, GY - 4, 5, 4);
+                // Bark texture
+                ctx.fillStyle = '#3E1F0D';
+                for (let by = 8; by < treeH - 5; by += 9) {
+                    ctx.fillRect(tx - 3, GY - treeH + by, 2, 4);
+                    ctx.fillRect(tx + 2, GY - treeH + by + 4, 2, 3);
+                }
 
-                // Canopy layers (overlapping circles)
-                ctx.fillStyle = '#006400';
+                // Massive canopy - many overlapping circles
+                const canopyY = GY - treeH;
+                // Dark base layer
+                ctx.fillStyle = '#004D1A';
+                ctx.beginPath(); ctx.arc(tx, canopyY - 8, 26, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx - 15, canopyY, 20, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx + 15, canopyY, 20, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx - 8, canopyY + 8, 18, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx + 8, canopyY + 8, 18, 0, Math.PI * 2); ctx.fill();
+                // Mid green layer
+                ctx.fillStyle = '#006B24';
+                ctx.beginPath(); ctx.arc(tx - 4, canopyY - 12, 20, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx + 10, canopyY - 4, 17, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx - 12, canopyY + 2, 15, 0, Math.PI * 2); ctx.fill();
+                // Bright highlight layer
+                ctx.fillStyle = '#228B22';
+                ctx.beginPath(); ctx.arc(tx + 3, canopyY - 15, 14, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx - 8, canopyY - 6, 11, 0, Math.PI * 2); ctx.fill();
+                // Lightest top spots
+                ctx.fillStyle = '#2EA043';
+                ctx.beginPath(); ctx.arc(tx + 1, canopyY - 18, 8, 0, Math.PI * 2); ctx.fill();
+
+                // Hanging vines from canopy
+                ctx.strokeStyle = '#1A5C2A';
+                ctx.lineWidth = 1.5;
+                const vineOffsets = [-18, -8, 6, 14];
+                for (let v = 0; v < vineOffsets.length; v++) {
+                    if ((bi + v) % 2 === 0) continue; // skip some for variety
+                    const vx = tx + vineOffsets[v];
+                    const vineLen = 20 + (bi * 7 + v * 13) % 25 + Math.sin(time * 0.8 + bi + v) * 3;
+                    ctx.beginPath();
+                    ctx.moveTo(vx, canopyY + 10);
+                    ctx.quadraticCurveTo(vx + 5 * Math.sin(time + v), canopyY + 10 + vineLen * 0.5, vx - 3, canopyY + 10 + vineLen);
+                    ctx.stroke();
+                    // Leaf at vine tip
+                    ctx.fillStyle = '#228B22';
+                    ctx.beginPath();
+                    ctx.ellipse(vx - 3, canopyY + 10 + vineLen, 3, 2, 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // === FOREGROUND BUSHES & FERNS near ground ===
+            ctx.fillStyle = '#1A6B2A';
+            for (let x = 5; x < CONFIG.BASE_WIDTH; x += 30 + (x * 3 % 15)) {
+                const bw = 12 + (x * 7 % 10);
+                const bh = 8 + (x * 3 % 6);
                 ctx.beginPath();
-                ctx.arc(tx, CONFIG.GROUND_Y - treeH - 5, 18, 0, Math.PI * 2);
+                ctx.arc(x, GY - bh/2, bw/2, Math.PI, 0);
                 ctx.fill();
+                // Lighter bush highlight
                 ctx.fillStyle = '#228B22';
                 ctx.beginPath();
-                ctx.arc(tx - 6, CONFIG.GROUND_Y - treeH, 14, 0, Math.PI * 2);
+                ctx.arc(x + 2, GY - bh/2 - 1, bw/3, Math.PI, 0);
                 ctx.fill();
-                ctx.beginPath();
-                ctx.arc(tx + 8, CONFIG.GROUND_Y - treeH + 2, 13, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#32CD32';
-                ctx.beginPath();
-                ctx.arc(tx + 2, CONFIG.GROUND_Y - treeH - 8, 10, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Hanging vines
-                if (b.hasSign) {
-                    ctx.strokeStyle = '#006400';
-                    ctx.lineWidth = 1.5;
-                    const vineStartY = CONFIG.GROUND_Y - treeH + 5;
-                    for (let v = 0; v < 2; v++) {
-                        const vx = tx - 10 + v * 20;
-                        const vineLen = 15 + Math.sin(time + bi + v) * 3;
-                        ctx.beginPath();
-                        ctx.moveTo(vx, vineStartY);
-                        ctx.quadraticCurveTo(vx + 4, vineStartY + vineLen/2, vx - 2, vineStartY + vineLen);
-                        ctx.stroke();
-                        // Vine leaf
-                        ctx.fillStyle = '#228B22';
-                        ctx.fillRect(vx - 3, vineStartY + vineLen - 2, 4, 3);
-                    }
+                ctx.fillStyle = '#1A6B2A';
+            }
+            // Small ferns
+            ctx.fillStyle = '#2E8B47';
+            for (let x = 15; x < CONFIG.BASE_WIDTH; x += 40 + (x * 5 % 20)) {
+                // Fern frond shapes
+                for (let f = -1; f <= 1; f += 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, GY);
+                    ctx.quadraticCurveTo(x + f * 8, GY - 12, x + f * 5, GY - 16);
+                    ctx.quadraticCurveTo(x + f * 3, GY - 12, x, GY);
+                    ctx.fill();
                 }
+            }
+
+            // === TOP CANOPY LAYER: thick leaf ceiling with light gaps ===
+            // Dark canopy base
+            ctx.fillStyle = '#0A3D1A';
+            ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, 28);
+            // Wavy canopy bottom edge
+            for (let x = 0; x < CONFIG.BASE_WIDTH; x += 8) {
+                const drop = 6 + Math.sin(x * 0.12) * 5 + Math.cos(x * 0.07 + 1) * 4;
+                ctx.fillRect(x, 28, 10, drop);
+            }
+            // Canopy leaf blobs hanging down
+            ctx.fillStyle = '#0D4A1F';
+            for (let x = 0; x < CONFIG.BASE_WIDTH; x += 18) {
+                const r = 10 + (x * 3 % 8);
+                const y = 22 + (x * 7 % 10);
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#115E28';
+            for (let x = 10; x < CONFIG.BASE_WIDTH; x += 24) {
+                const r = 7 + (x * 5 % 6);
+                const y = 18 + (x * 3 % 8);
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Lighter leaf accents on canopy
+            ctx.fillStyle = '#1A7033';
+            for (let x = 5; x < CONFIG.BASE_WIDTH; x += 30) {
+                const r = 5 + (x * 2 % 4);
+                ctx.beginPath();
+                ctx.arc(x, 15 + (x * 5 % 7), r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // === DAPPLED LIGHT: sunbeams filtering through canopy ===
+            for (let i = 0; i < 5; i++) {
+                const lx = 40 + i * 80 + Math.sin(i * 2.5) * 20;
+                const shimmer = 0.03 + 0.02 * Math.sin(time * 0.5 + i * 1.7);
+                ctx.fillStyle = `rgba(255, 255, 150, ${shimmer})`;
+                ctx.beginPath();
+                ctx.moveTo(lx - 4, 30);
+                ctx.lineTo(lx + 4, 30);
+                ctx.lineTo(lx + 12, GY);
+                ctx.lineTo(lx - 12, GY);
+                ctx.fill();
+            }
+
+            // === EXTRA VINES from top canopy ===
+            ctx.strokeStyle = '#0D5C23';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 8; i++) {
+                const vx = 25 + i * 50 + (i * 17 % 20);
+                const vineLen = 25 + (i * 13 % 30) + Math.sin(time * 0.6 + i) * 3;
+                ctx.beginPath();
+                ctx.moveTo(vx, 30 + (i * 5 % 8));
+                ctx.quadraticCurveTo(vx + 6 * Math.sin(time * 0.7 + i * 2), 30 + vineLen * 0.5, vx - 4, 30 + vineLen);
+                ctx.stroke();
+                // Small leaf
+                ctx.fillStyle = '#1A7033';
+                ctx.beginPath();
+                ctx.ellipse(vx - 4, 30 + vineLen, 3, 2, 0.5, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
