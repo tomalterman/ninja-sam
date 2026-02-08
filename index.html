@@ -256,7 +256,7 @@
 
     <script>
         // ==================== VERSION ====================
-        const VERSION = 'v8';
+        const VERSION = 'v9';
 
         // ==================== FIREBASE ====================
         const firebaseConfig = {
@@ -322,6 +322,82 @@
                 HEALTH: '#ff4757'
             }
         };
+
+        // ==================== LEVEL CONFIGURATION ====================
+        const LEVELS = {
+            city: {
+                id: 'city',
+                name: 'City',
+                unlockScore: 0,
+                backgroundType: 'city',
+                colors: {
+                    sky: '#1a1a2e',
+                    ground: '#533483',
+                    groundTop: '#7952a3',
+                    groundEdge: '#9966cc',
+                    groundFill: '#3d2066',
+                    groundBottom: '#2d1656',
+                    brickA: '#6a4c93',
+                    brickB: '#8066aa',
+                    brickC: '#5a3c83',
+                    brickD: '#4a2c73',
+                    shield: '#334',
+                    shieldRim: '#556',
+                    shieldGlow: '#00ffff',
+                    shieldArc: '#00ffff',
+                    shieldCore: '#ffffff',
+                    boltGlow: 'rgba(0, 255, 255, 0.3)',
+                    boltBody: '#00ffff',
+                    boltCore: '#ffffff',
+                    zapColor: 'rgba(0, 255, 255,',
+                    zapCore: 'rgba(255, 255, 255,',
+                    particleA: '#00ffff',
+                    particleB: '#ffffff',
+                    destroyA: '#ffff00',
+                    destroyB: '#ff4444',
+                    shieldPickupA: '#00ffff',
+                    shieldPickupB: '#556677'
+                }
+            },
+            jungle: {
+                id: 'jungle',
+                name: 'Jungle',
+                unlockScore: 5000,
+                backgroundType: 'jungle',
+                colors: {
+                    sky: '#87CEEB',
+                    ground: '#5C4033',
+                    groundTop: '#228B22',
+                    groundEdge: '#32CD32',
+                    groundFill: '#4A3728',
+                    groundBottom: '#3B2920',
+                    brickA: '#6B4226',
+                    brickB: '#7D4E2A',
+                    brickC: '#5A3720',
+                    brickD: '#4A2D1A',
+                    shield: '#5C4033',
+                    shieldRim: '#8B6914',
+                    shieldGlow: '#8B4513',
+                    shieldArc: '#A0522D',
+                    shieldCore: '#D2B48C',
+                    boltGlow: 'rgba(255, 100, 0, 0.3)',
+                    boltBody: '#ff6600',
+                    boltCore: '#ffcc00',
+                    zapColor: 'rgba(255, 100, 0,',
+                    zapCore: 'rgba(255, 200, 50,',
+                    particleA: '#ff6600',
+                    particleB: '#ffcc00',
+                    destroyA: '#8B4513',
+                    destroyB: '#A0522D',
+                    shieldPickupA: '#8B4513',
+                    shieldPickupB: '#D2B48C'
+                }
+            }
+        };
+
+        function getCurrentLevel() {
+            return LEVELS[game.currentLevel] || LEVELS.city;
+        }
 
         // ==================== DEBUG CONFIG ====================
         const DEBUG = {
@@ -581,7 +657,14 @@
             },
 
             // Secret debug: queue next robot type ('golden', 'lightning', or null)
-            nextSpecialRobot: null
+            nextSpecialRobot: null,
+
+            // Level system
+            currentLevel: 'city',
+            showLevelSelect: false,
+            levelSelectCursor: 0,  // 0 = city, 1 = jungle
+            jungleUnlocked: false,
+            newUnlock: false
         };
 
         // ==================== HIGH SCORES ====================
@@ -841,6 +924,9 @@
             // Load high scores
             loadHighScores();
 
+            // Load jungle unlock state
+            game.jungleUnlocked = localStorage.getItem('ninjaSamJungleUnlocked') === 'true';
+
             // Show title screen first
             game.showTitleScreen = true;
             game.running = true;
@@ -850,6 +936,20 @@
         function startGameFromTitle() {
             game.showTitleScreen = false;
             Sound.play('start');
+            if (game.jungleUnlocked) {
+                game.showLevelSelect = true;
+                game.levelSelectCursor = 0;
+            } else {
+                game.currentLevel = 'city';
+                initBackgroundForLevel();
+                resetGame();
+            }
+        }
+
+        function selectLevel(levelId) {
+            game.currentLevel = levelId;
+            game.showLevelSelect = false;
+            initBackgroundForLevel();
             resetGame();
         }
 
@@ -901,6 +1001,7 @@
             game.enteringName = false;
             game.playerName = '';
             game.newHighScoreRank = -1;
+            game.newUnlock = false;
 
             ninja.y = CONFIG.GROUND_Y;
             ninja.velocityY = 0;
@@ -936,6 +1037,37 @@
             nextFruitSpawnTime = 200;
         }
 
+        function initBackgroundForLevel() {
+            // Reset background data for current level
+            background.groundOffset = 0;
+            background.stars = Array.from({length: 20}, () => ({
+                x: Math.random() * CONFIG.BASE_WIDTH,
+                y: Math.random() * 80,
+                size: Math.random() < 0.3 ? 2 : 1
+            }));
+            background.clouds = [
+                { x: 50, y: 30, width: 60 },
+                { x: 200, y: 45, width: 45 },
+                { x: 350, y: 25, width: 55 },
+                { x: 500, y: 40, width: 50 }
+            ];
+            background.mountains = [
+                { x: 0, width: 200, height: 60 },
+                { x: 180, width: 150, height: 45 },
+                { x: 320, width: 180, height: 55 },
+                { x: 500, width: 160, height: 50 }
+            ];
+            background.buildings = [
+                { x: 0, width: 60, height: 80, color: '#1a237e', hasSign: true },
+                { x: 70, width: 45, height: 60, color: '#0d47a1', hasSign: false },
+                { x: 130, width: 70, height: 90, color: '#1565c0', hasSign: true },
+                { x: 210, width: 50, height: 70, color: '#0d47a1', hasSign: false },
+                { x: 280, width: 65, height: 85, color: '#1a237e', hasSign: true },
+                { x: 360, width: 55, height: 65, color: '#1565c0', hasSign: false },
+                { x: 430, width: 75, height: 95, color: '#0d47a1', hasSign: true }
+            ];
+        }
+
         // ==================== INPUT HANDLING ====================
         function setupInput() {
             // Keyboard
@@ -944,6 +1076,25 @@
                 if (game.showTitleScreen) {
                     e.preventDefault();
                     startGameFromTitle();
+                    return;
+                }
+
+                // Handle level select
+                if (game.showLevelSelect) {
+                    e.preventDefault();
+                    if (e.code === 'ArrowLeft') {
+                        game.levelSelectCursor = 0;
+                    } else if (e.code === 'ArrowRight') {
+                        game.levelSelectCursor = game.jungleUnlocked ? 1 : 0;
+                    } else if (e.code === 'Digit1') {
+                        selectLevel('city');
+                    } else if (e.code === 'Digit2' && game.jungleUnlocked) {
+                        selectLevel('jungle');
+                    } else if (e.code === 'Space' || e.code === 'Enter') {
+                        const levelId = game.levelSelectCursor === 0 ? 'city' : 'jungle';
+                        if (levelId === 'jungle' && !game.jungleUnlocked) return;
+                        selectLevel(levelId);
+                    }
                     return;
                 }
 
@@ -969,7 +1120,13 @@
                 if (game.gameOver) {
                     if (e.code === 'Space' || e.code === 'Enter') {
                         e.preventDefault();
-                        resetGame();
+                        if (game.jungleUnlocked) {
+                            game.gameOver = false;
+                            game.showLevelSelect = true;
+                            game.levelSelectCursor = 0;
+                        } else {
+                            resetGame();
+                        }
                     }
                     return; // Don't process other inputs when game over
                 }
@@ -1011,8 +1168,21 @@
                     startGameFromTitle();
                     return;
                 }
+                if (game.showLevelSelect) {
+                    // JUMP = confirm selection
+                    const levelId = game.levelSelectCursor === 0 ? 'city' : 'jungle';
+                    if (levelId === 'jungle' && !game.jungleUnlocked) return;
+                    selectLevel(levelId);
+                    return;
+                }
                 if (game.gameOver && !game.enteringName) {
-                    resetGame();
+                    if (game.jungleUnlocked) {
+                        game.gameOver = false;
+                        game.showLevelSelect = true;
+                        game.levelSelectCursor = 0;
+                    } else {
+                        resetGame();
+                    }
                     return;
                 }
                 game.keys.jump = true;
@@ -1025,8 +1195,18 @@
                     startGameFromTitle();
                     return;
                 }
+                if (game.showLevelSelect) {
+                    // SLASH = toggle between levels
+                    game.levelSelectCursor = game.levelSelectCursor === 0 && game.jungleUnlocked ? 1 : 0;
+                    return;
+                }
                 if (game.gameOver && !game.enteringName) {
-                    resetGame();
+                    if (game.jungleUnlocked) {
+                        game.gameOver = false;
+                        game.showLevelSelect = true;
+                    } else {
+                        resetGame();
+                    }
                     return;
                 }
                 game.keys.slash = true;
@@ -1073,13 +1253,25 @@
                     return;
                 }
 
+                // Handle level select - tap on tiles
+                if (game.showLevelSelect) {
+                    handleLevelSelectTouch(canvasX, canvasY);
+                    return;
+                }
+
                 if (game.gameOver) {
                     if (game.enteringName) {
                         // Handle keyboard touch
                         handleKeyboardTouch(canvasX, canvasY);
                     } else {
-                        // Restart game
-                        resetGame();
+                        // Go to level select or restart
+                        if (game.jungleUnlocked) {
+                            game.gameOver = false;
+                            game.showLevelSelect = true;
+                            game.levelSelectCursor = 0;
+                        } else {
+                            resetGame();
+                        }
                     }
                 }
             }
@@ -1280,6 +1472,7 @@
                     ninja.hasShield = false;
                     ninja.shieldBreakAnim = 40;
                     // Shield shatters into fragments!
+                    const breakLc = getCurrentLevel().colors;
                     for (let j = 0; j < 15; j++) {
                         const angle = (j / 15) * Math.PI * 2;
                         particles.push({
@@ -1288,7 +1481,7 @@
                             vx: Math.cos(angle) * (3 + Math.random() * 5),
                             vy: Math.sin(angle) * (3 + Math.random() * 5),
                             size: 4 + Math.random() * 6,
-                            color: Math.random() < 0.4 ? '#00ffff' : '#445566',
+                            color: Math.random() < 0.4 ? breakLc.particleA : breakLc.shieldPickupB,
                             life: 35 + Math.random() * 10
                         });
                     }
@@ -1603,11 +1796,12 @@
 
                         // Zap ALL other robots on screen - 1000 points each!
                         let zappedCount = 0;
+                        const zapPartLc = getCurrentLevel().colors;
                         for (let j = robots.length - 1; j >= 0; j--) {
                             if (j === i) continue; // Skip the lightning robot itself
                             const target = robots[j];
                             zappedCount++;
-                            // Create electric explosion particles at each robot
+                            // Create explosion particles at each robot
                             for (let k = 0; k < 10; k++) {
                                 particles.push({
                                     x: target.x,
@@ -1615,7 +1809,7 @@
                                     vx: (Math.random() - 0.5) * 12,
                                     vy: (Math.random() - 0.5) * 12,
                                     size: 3 + Math.random() * 4,
-                                    color: Math.random() < 0.5 ? '#00ffff' : '#ffffff',
+                                    color: Math.random() < 0.5 ? zapPartLc.particleA : zapPartLc.particleB,
                                     life: 25
                                 });
                             }
@@ -1635,7 +1829,8 @@
                         ninja.hasShield = true;
                         ninja.shieldPickupAnim = 30;
                         Sound.play('powerup');
-                        // Create shield pickup particles (cyan/metallic flying to ninja)
+                        // Create shield pickup particles flying to ninja
+                        const pickLc = getCurrentLevel().colors;
                         for (let j = 0; j < 12; j++) {
                             particles.push({
                                 x: robot.x,
@@ -1643,7 +1838,7 @@
                                 vx: (ninja.x - robot.x) / 15 + (Math.random() - 0.5) * 4,
                                 vy: -2 + (Math.random() - 0.5) * 4,
                                 size: 4 + Math.random() * 4,
-                                color: Math.random() < 0.5 ? '#00ffff' : '#556677',
+                                color: Math.random() < 0.5 ? pickLc.shieldPickupA : pickLc.shieldPickupB,
                                 life: 30
                             });
                         }
@@ -1661,10 +1856,10 @@
                 // Check slash collision
                 if (slashBox && boxCollision(slashBox, robotBox)) {
                     if (robot.isTall || robot.isLightning || robot.isGolden) {
-                        // Tall robots, blue lightning robots, and golden robots zap the ninja when slashed!
+                        // These enemies zap/hurt the ninja when slashed!
                         if (ninja.invincible <= 0) {
                             takeDamage();
-                            // Create electric zap particles
+                            const slashLc = getCurrentLevel().colors;
                             for (let j = 0; j < 8; j++) {
                                 particles.push({
                                     x: robot.x + (Math.random() - 0.5) * robot.width,
@@ -1672,7 +1867,7 @@
                                     vx: (Math.random() - 0.5) * 12,
                                     vy: (Math.random() - 0.5) * 12,
                                     size: 2 + Math.random() * 3,
-                                    color: Math.random() < 0.5 ? '#00ffff' : '#ffffff',
+                                    color: Math.random() < 0.5 ? slashLc.particleA : slashLc.particleB,
                                     life: 15
                                 });
                             }
@@ -1691,6 +1886,7 @@
                     if (ninja.hasShield) {
                         ninja.shieldBashAnim = 15;
                         // Impact particles (sparks flying everywhere!)
+                        const bashLc = getCurrentLevel().colors;
                         for (let j = 0; j < 12; j++) {
                             particles.push({
                                 x: robot.x,
@@ -1698,7 +1894,7 @@
                                 vx: (Math.random() - 0.5) * 14,
                                 vy: (Math.random() - 0.5) * 14,
                                 size: 2 + Math.random() * 5,
-                                color: Math.random() < 0.6 ? '#00ffff' : '#ffffff',
+                                color: Math.random() < 0.6 ? bashLc.particleA : bashLc.particleB,
                                 life: 25
                             });
                         }
@@ -1708,8 +1904,9 @@
                         continue;
                     }
                     takeDamage();
-                    // Extra zap effect for tall shielded robots, blue lightning robots, and golden robots
+                    // Extra effect for special enemies on contact
                     if (robot.isTall || robot.isLightning || robot.isGolden) {
+                        const contactLc = getCurrentLevel().colors;
                         for (let j = 0; j < 5; j++) {
                             particles.push({
                                 x: ninja.x,
@@ -1717,7 +1914,7 @@
                                 vx: (Math.random() - 0.5) * 10,
                                 vy: (Math.random() - 0.5) * 10,
                                 size: 2 + Math.random() * 2,
-                                color: '#00ffff',
+                                color: contactLc.particleA,
                                 life: 12
                             });
                         }
@@ -1761,12 +1958,13 @@
 
                     if (boxCollision(boltBox, robotBox)) {
                         if (robot.isLightning) {
-                            // Blue robot reflects the bolt back at ninja!
+                            // Reflects the bolt back at ninja!
                             bolt.vx = -bolt.vx;
                             bolt.bouncing = true;
                             bolt.bounceDelay = 15; // Brief delay before it can hit ninja (kid-friendly)
                             Sound.play('bounce');
-                            // Electric reflection particles
+                            // Reflection particles
+                            const refLc = getCurrentLevel().colors;
                             for (let j = 0; j < 6; j++) {
                                 particles.push({
                                     x: robot.x,
@@ -1774,7 +1972,7 @@
                                     vx: (Math.random() - 0.5) * 10,
                                     vy: (Math.random() - 0.5) * 10,
                                     size: 2 + Math.random() * 3,
-                                    color: Math.random() < 0.5 ? '#00ffff' : '#ffffff',
+                                    color: Math.random() < 0.5 ? refLc.particleA : refLc.particleB,
                                     life: 20
                                 });
                             }
@@ -1815,7 +2013,8 @@
                                 ninja.hasGoldenFist = false; // Lose the golden fist!
                                 ninja.goldenFistState = 'idle';
                                 ninja.goldenFistX = 0;
-                                // Electric shock particles
+                                // Shock particles
+                                const shockLc = getCurrentLevel().colors;
                                 for (let j = 0; j < 12; j++) {
                                     particles.push({
                                         x: fistX,
@@ -1823,7 +2022,7 @@
                                         vx: (Math.random() - 0.5) * 15,
                                         vy: (Math.random() - 0.5) * 15,
                                         size: 3 + Math.random() * 4,
-                                        color: Math.random() < 0.5 ? '#00ffff' : '#ffffff',
+                                        color: Math.random() < 0.5 ? shockLc.particleA : shockLc.particleB,
                                         life: 20
                                     });
                                 }
@@ -1862,6 +2061,7 @@
 
         function destroyRobot(robot, index, squashed = false) {
             Sound.play(squashed ? 'squash' : 'hit');
+            const lc = getCurrentLevel().colors;
             // Create explosion particles
             const particleCount = squashed ? 5 : 8;
             for (let i = 0; i < particleCount; i++) {
@@ -1871,7 +2071,7 @@
                     vx: (Math.random() - 0.5) * (squashed ? 12 : 8),
                     vy: squashed ? (Math.random() - 0.8) * 4 : (Math.random() - 0.5) * 8 - 2,
                     size: 3 + Math.random() * 4,
-                    color: Math.random() < 0.5 ? CONFIG.COLORS.ROBOT_ACCENT : CONFIG.COLORS.ROBOT_BODY,
+                    color: Math.random() < 0.5 ? lc.destroyA : lc.destroyB,
                     life: 30
                 });
             }
@@ -1926,6 +2126,13 @@
                 ninja.isDead = true;
                 Sound.play('gameOver');
                 ninja.deathAnim = 120; // 2 second death animation
+
+                // Check for jungle unlock
+                if (game.score >= 5000 && !game.jungleUnlocked) {
+                    game.jungleUnlocked = true;
+                    game.newUnlock = true;
+                    localStorage.setItem('ninjaSamJungleUnlocked', 'true');
+                }
             }
         }
 
@@ -2034,7 +2241,7 @@
             const ctx = game.ctx;
 
             // Clear
-            ctx.fillStyle = CONFIG.COLORS.SKY;
+            ctx.fillStyle = getCurrentLevel().colors.sky;
             ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
 
             // Draw background
@@ -2049,6 +2256,12 @@
                 return;
             }
 
+            // Level select screen
+            if (game.showLevelSelect) {
+                drawLevelSelect();
+                return;
+            }
+
             // Draw robots
             for (const robot of robots) {
                 drawRobot(robot);
@@ -2059,7 +2272,8 @@
                 drawLightningBolt(bolt);
             }
 
-            // Draw screen zaps (horizontal lightning across screen)
+            // Draw screen zaps (horizontal lightning/fire across screen)
+            const zapLc = getCurrentLevel().colors;
             for (const zap of screenZaps) {
                 const alpha = zap.life / zap.maxLife;
                 const flash = Math.sin(Date.now() / 30) > 0 ? 1 : 0.5;
@@ -2067,7 +2281,7 @@
                 const seed = Date.now() / 50;
 
                 // Draw to left edge
-                ctx.strokeStyle = `rgba(0, 255, 255, ${alpha * flash})`;
+                ctx.strokeStyle = `${zapLc.zapColor} ${alpha * flash})`;
                 ctx.lineWidth = 4;
                 ctx.beginPath();
                 ctx.moveTo(zap.x, zap.y);
@@ -2090,8 +2304,8 @@
                 }
                 ctx.stroke();
 
-                // Inner white line - left
-                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * flash * 0.9})`;
+                // Inner line - left
+                ctx.strokeStyle = `${zapLc.zapCore} ${alpha * flash * 0.9})`;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.moveTo(zap.x, zap.y);
@@ -2103,7 +2317,7 @@
                 }
                 ctx.stroke();
 
-                // Inner white line - right
+                // Inner line - right
                 ctx.beginPath();
                 ctx.moveTo(zap.x, zap.y);
                 for (let i = 1; i <= segments; i++) {
@@ -2115,7 +2329,7 @@
                 ctx.stroke();
 
                 // Center glow
-                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * flash * 0.8})`;
+                ctx.fillStyle = `${zapLc.zapCore} ${alpha * flash * 0.8})`;
                 ctx.beginPath();
                 ctx.arc(zap.x, zap.y, 15 * alpha, 0, Math.PI * 2);
                 ctx.fill();
@@ -2156,9 +2370,9 @@
             const lightningTime = Date.now() / 100;
 
             // Left lightning bolt
-            drawLightningBolt(ctx, 45, 30, 45, CONFIG.GROUND_Y - 10, lightningTime);
+            drawTitleLightning(ctx, 45, 30, 45, CONFIG.GROUND_Y - 10, lightningTime);
             // Right lightning bolt
-            drawLightningBolt(ctx, CONFIG.BASE_WIDTH - 45, 30, CONFIG.BASE_WIDTH - 45, CONFIG.GROUND_Y - 10, lightningTime + 50);
+            drawTitleLightning(ctx, CONFIG.BASE_WIDTH - 45, 30, CONFIG.BASE_WIDTH - 45, CONFIG.GROUND_Y - 10, lightningTime + 50);
 
             // === SAM POSING ===
             drawTitleNinja(ctx, centerX, CONFIG.GROUND_Y, time);
@@ -2224,7 +2438,236 @@
             ctx.fillText(VERSION, 4, CONFIG.BASE_HEIGHT - 4);
         }
 
-        function drawLightningBolt(ctx, x1, y1, x2, y2, seed) {
+        function drawLevelSelect() {
+            const ctx = game.ctx;
+            const time = Date.now() / 1000;
+            const centerX = CONFIG.BASE_WIDTH / 2;
+
+            // Dark overlay background
+            ctx.fillStyle = '#111122';
+            ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
+
+            // Title
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 18px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('SELECT LEVEL', centerX, 35);
+
+            // Tile dimensions
+            const tileW = 120, tileH = 100;
+            const gap = 20;
+            const tileY = 55;
+
+            // === CITY TILE ===
+            const cityX = centerX - gap/2 - tileW;
+
+            // Border - bright if selected by cursor
+            if (game.levelSelectCursor === 0) {
+                // Animated bright selection border
+                const pulse = 0.6 + 0.4 * Math.sin(time * 6);
+                ctx.strokeStyle = `rgba(255, 215, 0, ${pulse})`;
+                ctx.lineWidth = 4;
+                ctx.strokeRect(cityX - 4, tileY - 4, tileW + 8, tileH + 8);
+            }
+            const cityBorderColor = game.levelSelectCursor === 0 ? '#ffd700' : (Math.sin(time * 3) > 0 ? '#7952a3' : '#9966cc');
+            ctx.strokeStyle = cityBorderColor;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(cityX - 2, tileY - 2, tileW + 4, tileH + 4);
+
+            // City tile background - dark purple night sky
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(cityX, tileY, tileW, tileH);
+
+            // Mini stars
+            for (let i = 0; i < 8; i++) {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(cityX + 10 + i * 14, tileY + 5 + (i % 3) * 8, 1, 1);
+            }
+
+            // Mini moon
+            ctx.fillStyle = '#f5f5dc';
+            ctx.beginPath();
+            ctx.arc(cityX + tileW - 20, tileY + 18, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Mini buildings
+            const buildingColors = ['#1a237e', '#0d47a1', '#1565c0'];
+            const buildingWidths = [18, 14, 22, 16, 20, 15, 18];
+            let bx = cityX + 5;
+            for (let i = 0; i < 7; i++) {
+                const bh = 25 + (i * 7 % 20);
+                ctx.fillStyle = buildingColors[i % 3];
+                ctx.fillRect(bx, tileY + tileH - bh - 15, buildingWidths[i], bh);
+                // Mini windows
+                ctx.fillStyle = '#ffd700';
+                for (let wy = 3; wy < bh - 5; wy += 6) {
+                    for (let wx = 2; wx < buildingWidths[i] - 3; wx += 5) {
+                        if ((i + wx + wy) % 3 !== 0) {
+                            ctx.fillRect(bx + wx, tileY + tileH - bh - 15 + wy, 2, 2);
+                        }
+                    }
+                }
+                bx += buildingWidths[i] + 2;
+            }
+
+            // Mini ground
+            ctx.fillStyle = '#533483';
+            ctx.fillRect(cityX, tileY + tileH - 15, tileW, 15);
+            ctx.fillStyle = '#7952a3';
+            ctx.fillRect(cityX, tileY + tileH - 15, tileW, 2);
+
+            // City label
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText('1 - CITY', cityX + tileW / 2, tileY + tileH + 14);
+
+            // === JUNGLE TILE ===
+            const jungleX = centerX + gap/2;
+
+            if (game.jungleUnlocked) {
+                // Border - bright if selected by cursor
+                if (game.levelSelectCursor === 1) {
+                    const pulse = 0.6 + 0.4 * Math.sin(time * 6);
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${pulse})`;
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(jungleX - 4, tileY - 4, tileW + 8, tileH + 8);
+                }
+                const jungleBorderColor = game.levelSelectCursor === 1 ? '#ffd700' : (Math.sin(time * 3 + 1) > 0 ? '#228B22' : '#32CD32');
+                ctx.strokeStyle = jungleBorderColor;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(jungleX - 2, tileY - 2, tileW + 4, tileH + 4);
+
+                // Jungle tile background - daylit blue sky
+                ctx.fillStyle = '#87CEEB';
+                ctx.fillRect(jungleX, tileY, tileW, tileH);
+
+                // Mini sun
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(jungleX + tileW - 20, tileY + 18, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#FFF8DC';
+                ctx.beginPath();
+                ctx.arc(jungleX + tileW - 20, tileY + 18, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Mini clouds
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.fillRect(jungleX + 10, tileY + 12, 20, 6);
+                ctx.fillRect(jungleX + 14, tileY + 8, 12, 5);
+                ctx.fillRect(jungleX + 50, tileY + 18, 16, 5);
+
+                // Mini green hills
+                ctx.fillStyle = '#228B22';
+                ctx.beginPath();
+                ctx.moveTo(jungleX, tileY + tileH - 30);
+                ctx.quadraticCurveTo(jungleX + 30, tileY + tileH - 50, jungleX + 60, tileY + tileH - 30);
+                ctx.quadraticCurveTo(jungleX + 90, tileY + tileH - 45, jungleX + tileW, tileY + tileH - 25);
+                ctx.lineTo(jungleX + tileW, tileY + tileH - 15);
+                ctx.lineTo(jungleX, tileY + tileH - 15);
+                ctx.fill();
+
+                // Mini tropical trees
+                const treePositions = [15, 40, 65, 90, 110];
+                for (const tx of treePositions) {
+                    // Trunk
+                    ctx.fillStyle = '#8B4513';
+                    ctx.fillRect(jungleX + tx - 2, tileY + tileH - 45, 4, 25);
+                    // Canopy
+                    ctx.fillStyle = '#006400';
+                    ctx.beginPath();
+                    ctx.arc(jungleX + tx, tileY + tileH - 48, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#228B22';
+                    ctx.beginPath();
+                    ctx.arc(jungleX + tx + 2, tileY + tileH - 50, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Mini hanging vines
+                ctx.strokeStyle = '#006400';
+                ctx.lineWidth = 1;
+                for (let v = 0; v < 4; v++) {
+                    const vx = jungleX + 20 + v * 28;
+                    ctx.beginPath();
+                    ctx.moveTo(vx, tileY + tileH - 50);
+                    ctx.quadraticCurveTo(vx + 3, tileY + tileH - 40, vx - 2, tileY + tileH - 30);
+                    ctx.stroke();
+                }
+
+                // Mini ground (brown earth with green grass)
+                ctx.fillStyle = '#5C4033';
+                ctx.fillRect(jungleX, tileY + tileH - 15, tileW, 15);
+                ctx.fillStyle = '#228B22';
+                ctx.fillRect(jungleX, tileY + tileH - 15, tileW, 2);
+
+                // Jungle label
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('2 - JUNGLE', jungleX + tileW / 2, tileY + tileH + 14);
+            } else {
+                // Locked jungle tile - greyed out
+                ctx.strokeStyle = '#444';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(jungleX - 2, tileY - 2, tileW + 4, tileH + 4);
+
+                ctx.fillStyle = '#222';
+                ctx.fillRect(jungleX, tileY, tileW, tileH);
+
+                // Lock icon
+                ctx.fillStyle = '#555';
+                // Lock body
+                ctx.fillRect(jungleX + tileW/2 - 12, tileY + tileH/2 - 5, 24, 20);
+                // Lock shackle
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(jungleX + tileW/2, tileY + tileH/2 - 5, 10, Math.PI, 0);
+                ctx.stroke();
+                // Keyhole
+                ctx.fillStyle = '#222';
+                ctx.beginPath();
+                ctx.arc(jungleX + tileW/2, tileY + tileH/2 + 3, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillRect(jungleX + tileW/2 - 1, tileY + tileH/2 + 5, 2, 5);
+
+                // Locked label
+                ctx.fillStyle = '#555';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('SCORE 5000', jungleX + tileW / 2, tileY + tileH + 14);
+            }
+
+            // Selection arrow below cursor tile
+            const arrowX = game.levelSelectCursor === 0
+                ? cityX + tileW / 2
+                : jungleX + tileW / 2;
+            const arrowY = tileY + tileH + 22 + Math.sin(time * 5) * 2;
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.moveTo(arrowX - 5, arrowY);
+            ctx.lineTo(arrowX + 5, arrowY);
+            ctx.lineTo(arrowX, arrowY - 6);
+            ctx.fill();
+
+            // Blinking instruction
+            const blink = Math.sin(time * 4) > 0;
+            if (blink) {
+                ctx.fillStyle = '#aaa';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('TAP A LEVEL OR ARROWS + ENTER', centerX, tileY + tileH + 34);
+            }
+
+            // Version
+            ctx.fillStyle = '#444';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(VERSION, 4, CONFIG.BASE_HEIGHT - 4);
+        }
+
+        function drawTitleLightning(ctx, x1, y1, x2, y2, seed) {
             const segments = 8;
             const flash = Math.sin(seed * 0.3) > 0.7 ? 1 : 0.3;
 
@@ -2420,6 +2863,114 @@
         }
 
         function drawBackground() {
+            if (getCurrentLevel().backgroundType === 'jungle') {
+                drawJungleBackground();
+            } else {
+                drawCityBackground();
+            }
+        }
+
+        function drawJungleBackground() {
+            const ctx = game.ctx;
+            const time = Date.now() / 1000;
+
+            // Sun
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(320, 40, 22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#FFF8DC';
+            ctx.beginPath();
+            ctx.arc(320, 40, 14, 0, Math.PI * 2);
+            ctx.fill();
+            // Sun rays
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.15)';
+            ctx.beginPath();
+            ctx.arc(320, 40, 35, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Clouds (white fluffy)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            for (const c of background.clouds) {
+                ctx.beginPath();
+                ctx.arc(c.x + c.width/2, c.y, c.width/4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(c.x + c.width/3, c.y + 3, c.width/5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(c.x + c.width*2/3, c.y + 3, c.width/5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Rolling green hills (instead of mountains)
+            for (const m of background.mountains) {
+                ctx.fillStyle = '#2E8B57';
+                ctx.beginPath();
+                ctx.moveTo(m.x, CONFIG.GROUND_Y);
+                ctx.quadraticCurveTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height, m.x + m.width, CONFIG.GROUND_Y);
+                ctx.fill();
+
+                // Lighter highlight on top
+                ctx.fillStyle = '#3CB371';
+                ctx.beginPath();
+                ctx.moveTo(m.x + m.width * 0.2, CONFIG.GROUND_Y);
+                ctx.quadraticCurveTo(m.x + m.width / 2, CONFIG.GROUND_Y - m.height * 0.9, m.x + m.width * 0.8, CONFIG.GROUND_Y);
+                ctx.fill();
+            }
+
+            // Tropical trees (instead of buildings)
+            for (let bi = 0; bi < background.buildings.length; bi++) {
+                const b = background.buildings[bi];
+                const tx = b.x + b.width / 2;
+                const treeH = b.height;
+
+                // Trunk
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(tx - 4, CONFIG.GROUND_Y - treeH, 8, treeH);
+                // Trunk texture
+                ctx.fillStyle = '#6B3410';
+                ctx.fillRect(tx - 2, CONFIG.GROUND_Y - treeH + 5, 2, treeH - 10);
+                ctx.fillRect(tx + 1, CONFIG.GROUND_Y - treeH + 10, 2, treeH - 15);
+
+                // Canopy layers (overlapping circles)
+                ctx.fillStyle = '#006400';
+                ctx.beginPath();
+                ctx.arc(tx, CONFIG.GROUND_Y - treeH - 5, 18, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#228B22';
+                ctx.beginPath();
+                ctx.arc(tx - 6, CONFIG.GROUND_Y - treeH, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(tx + 8, CONFIG.GROUND_Y - treeH + 2, 13, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#32CD32';
+                ctx.beginPath();
+                ctx.arc(tx + 2, CONFIG.GROUND_Y - treeH - 8, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Hanging vines
+                if (b.hasSign) {
+                    ctx.strokeStyle = '#006400';
+                    ctx.lineWidth = 1.5;
+                    const vineStartY = CONFIG.GROUND_Y - treeH + 5;
+                    for (let v = 0; v < 2; v++) {
+                        const vx = tx - 10 + v * 20;
+                        const vineLen = 15 + Math.sin(time + bi + v) * 3;
+                        ctx.beginPath();
+                        ctx.moveTo(vx, vineStartY);
+                        ctx.quadraticCurveTo(vx + 4, vineStartY + vineLen/2, vx - 2, vineStartY + vineLen);
+                        ctx.stroke();
+                        // Vine leaf
+                        ctx.fillStyle = '#228B22';
+                        ctx.fillRect(vx - 3, vineStartY + vineLen - 2, 4, 3);
+                    }
+                }
+            }
+        }
+
+        function drawCityBackground() {
             const ctx = game.ctx;
             const time = Date.now() / 1000;
 
@@ -2541,47 +3092,48 @@
 
         function drawGround() {
             const ctx = game.ctx;
+            const lc = getCurrentLevel().colors;
 
             // Ground fill gradient effect
-            ctx.fillStyle = '#3d2066';
+            ctx.fillStyle = lc.groundFill;
             ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, 15);
-            ctx.fillStyle = CONFIG.COLORS.GROUND;
+            ctx.fillStyle = lc.ground;
             ctx.fillRect(0, CONFIG.GROUND_Y + 15, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT - CONFIG.GROUND_Y - 15);
 
             // Ground top edge (lit)
-            ctx.fillStyle = '#9966cc';
+            ctx.fillStyle = lc.groundEdge;
             ctx.fillRect(0, CONFIG.GROUND_Y, CONFIG.BASE_WIDTH, 2);
 
             // Ground secondary line
-            ctx.fillStyle = CONFIG.COLORS.GROUND_TOP;
+            ctx.fillStyle = lc.groundTop;
             ctx.fillRect(0, CONFIG.GROUND_Y + 2, CONFIG.BASE_WIDTH, 3);
 
             // Brick/tile pattern (scrolling)
             for (let x = background.groundOffset; x < CONFIG.BASE_WIDTH; x += 32) {
                 // Top row bricks
-                ctx.fillStyle = '#6a4c93';
+                ctx.fillStyle = lc.brickA;
                 ctx.fillRect(x, CONFIG.GROUND_Y + 8, 14, 6);
                 ctx.fillRect(x + 16, CONFIG.GROUND_Y + 8, 14, 6);
 
                 // Brick highlights
-                ctx.fillStyle = '#8066aa';
+                ctx.fillStyle = lc.brickB;
                 ctx.fillRect(x, CONFIG.GROUND_Y + 8, 14, 2);
                 ctx.fillRect(x + 16, CONFIG.GROUND_Y + 8, 14, 2);
 
                 // Bottom row bricks (offset)
-                ctx.fillStyle = '#5a3c83';
+                ctx.fillStyle = lc.brickC;
                 ctx.fillRect(x + 8, CONFIG.GROUND_Y + 18, 14, 6);
                 ctx.fillRect(x + 24, CONFIG.GROUND_Y + 18, 14, 6);
 
                 // Brick shadows
-                ctx.fillStyle = '#4a2c73';
+                ctx.fillStyle = lc.brickD;
                 ctx.fillRect(x, CONFIG.GROUND_Y + 12, 14, 2);
                 ctx.fillRect(x + 16, CONFIG.GROUND_Y + 12, 14, 2);
                 ctx.fillRect(x + 8, CONFIG.GROUND_Y + 22, 14, 2);
             }
 
             // Bottom edge fade
-            ctx.fillStyle = '#2d1656';
+            ctx.fillStyle = lc.groundBottom;
             ctx.fillRect(0, CONFIG.GROUND_Y + 28, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT - CONFIG.GROUND_Y - 28);
         }
 
@@ -3024,6 +3576,8 @@
             if (ninja.hasShield || ninja.shieldBashAnim > 0) {
                 const shieldTime = Date.now() / 50;
                 const shieldFlicker = Math.sin(shieldTime * 3) * 0.3 + 0.7;
+                const lc = getCurrentLevel().colors;
+                const isJungle = getCurrentLevel().backgroundType === 'jungle';
 
                 // Shield position (in front of Sam, facing right toward robots)
                 let shieldX = x + 18;
@@ -3042,51 +3596,80 @@
                 ctx.fillStyle = CONFIG.COLORS.NINJA_SKIN;
                 ctx.fillRect(shieldX - 12, y - 6 + bobY, 5, 5);
 
-                // Shield body (dark metallic ellipse)
-                ctx.fillStyle = '#334';
+                // Shield body
+                ctx.fillStyle = lc.shield;
                 ctx.beginPath();
                 ctx.ellipse(shieldX, shieldY, 10, 18, 0, 0, Math.PI * 2);
                 ctx.fill();
 
                 // Shield rim
-                ctx.strokeStyle = '#556';
+                ctx.strokeStyle = lc.shieldRim;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.ellipse(shieldX, shieldY, 10, 18, 0, 0, Math.PI * 2);
                 ctx.stroke();
 
-                // Electric glow surface
-                ctx.fillStyle = `rgba(0, 255, 255, ${shieldFlicker * 0.5})`;
-                ctx.beginPath();
-                ctx.ellipse(shieldX, shieldY, 8, 15, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Energy arcs (horizontal zigzag lines)
-                ctx.strokeStyle = `rgba(0, 255, 255, ${shieldFlicker})`;
-                ctx.lineWidth = 1.5;
-                for (let arc = 0; arc < 3; arc++) {
-                    const arcOffset = shieldTime * 2 + arc * 2;
-                    const arcY1 = shieldY - 12 + (arc * 10);
+                if (isJungle) {
+                    // Wood grain surface
+                    ctx.fillStyle = '#7D4E2A';
                     ctx.beginPath();
-                    ctx.moveTo(shieldX - 6, arcY1);
-                    ctx.lineTo(shieldX + Math.sin(arcOffset) * 3, arcY1 + 3);
-                    ctx.lineTo(shieldX + 6, arcY1 + 5);
+                    ctx.ellipse(shieldX, shieldY, 8, 15, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Wood grain lines
+                    ctx.strokeStyle = lc.shieldArc;
+                    ctx.lineWidth = 1;
+                    for (let g = 0; g < 3; g++) {
+                        const gy = shieldY - 10 + g * 8;
+                        ctx.beginPath();
+                        ctx.moveTo(shieldX - 5, gy);
+                        ctx.quadraticCurveTo(shieldX, gy + 3, shieldX + 5, gy);
+                        ctx.stroke();
+                    }
+
+                    // Central wood knot
+                    ctx.fillStyle = '#4A3228';
+                    ctx.beginPath();
+                    ctx.arc(shieldX, shieldY, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Electric glow surface
+                    ctx.fillStyle = `rgba(0, 255, 255, ${shieldFlicker * 0.5})`;
+                    ctx.beginPath();
+                    ctx.ellipse(shieldX, shieldY, 8, 15, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Energy arcs (horizontal zigzag lines)
+                    ctx.strokeStyle = `rgba(0, 255, 255, ${shieldFlicker})`;
+                    ctx.lineWidth = 1.5;
+                    for (let arc = 0; arc < 3; arc++) {
+                        const arcOffset = shieldTime * 2 + arc * 2;
+                        const arcY1 = shieldY - 12 + (arc * 10);
+                        ctx.beginPath();
+                        ctx.moveTo(shieldX - 6, arcY1);
+                        ctx.lineTo(shieldX + Math.sin(arcOffset) * 3, arcY1 + 3);
+                        ctx.lineTo(shieldX + 6, arcY1 + 5);
+                        ctx.stroke();
+                    }
+
+                    // Central energy core line
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${shieldFlicker * 0.8})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(shieldX, shieldY - 14);
+                    ctx.lineTo(shieldX, shieldY + 14);
                     ctx.stroke();
                 }
-
-                // Central energy core line
-                ctx.strokeStyle = `rgba(255, 255, 255, ${shieldFlicker * 0.8})`;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(shieldX, shieldY - 14);
-                ctx.lineTo(shieldX, shieldY + 14);
-                ctx.stroke();
             }
 
             // Shield pickup glow effect
             if (ninja.shieldPickupAnim > 0) {
                 const glowAlpha = ninja.shieldPickupAnim / 30;
-                ctx.fillStyle = `rgba(0, 255, 255, ${glowAlpha * 0.4})`;
+                const pickupColor = getCurrentLevel().colors.shieldGlow;
+                // Parse hex to rgb for alpha
+                const isJungle = getCurrentLevel().backgroundType === 'jungle';
+                const glowRgba = isJungle ? `rgba(139, 69, 19, ${glowAlpha * 0.4})` : `rgba(0, 255, 255, ${glowAlpha * 0.4})`;
+                ctx.fillStyle = glowRgba;
                 ctx.beginPath();
                 ctx.ellipse(x, y - ninja.height / 2, 20 + (30 - ninja.shieldPickupAnim),
                             25 + (30 - ninja.shieldPickupAnim), 0, 0, Math.PI * 2);
@@ -3097,6 +3680,14 @@
         }
 
         function drawRobot(robot) {
+            if (getCurrentLevel().backgroundType === 'jungle') {
+                drawJungleEnemy(robot);
+            } else {
+                drawCityRobot(robot);
+            }
+        }
+
+        function drawCityRobot(robot) {
             const ctx = game.ctx;
             const x = robot.x;
             const y = robot.y;
@@ -3432,15 +4023,351 @@
             ctx.restore();
         }
 
+        function drawJungleEnemy(robot) {
+            const ctx = game.ctx;
+            const x = robot.x;
+            const y = robot.y;
+
+            ctx.save();
+
+            const bobY = Math.sin(robot.animFrame * Math.PI / 2) * 2;
+
+            if (robot.isTall) {
+                // === BIG SPIKY TREE ===
+                const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 2;
+
+                // Root feet
+                ctx.fillStyle = '#5C4033';
+                ctx.fillRect(x - 14 - legOffset, y - 5, 10, 7);
+                ctx.fillRect(x + 4 + legOffset, y - 5, 10, 7);
+                ctx.fillStyle = '#4A3228';
+                ctx.fillRect(x - 12 - legOffset, y, 8, 3);
+                ctx.fillRect(x + 5 + legOffset, y, 8, 3);
+
+                // Main trunk body
+                ctx.fillStyle = '#6B4226';
+                ctx.fillRect(x - 12, y - 34 + bobY, 24, 30);
+                // Bark texture
+                ctx.fillStyle = '#5C3A20';
+                ctx.fillRect(x - 10, y - 30 + bobY, 4, 20);
+                ctx.fillRect(x + 2, y - 28 + bobY, 3, 18);
+                ctx.fillRect(x + 7, y - 32 + bobY, 3, 16);
+                // Bark highlight
+                ctx.fillStyle = '#7D4E2A';
+                ctx.fillRect(x - 5, y - 32 + bobY, 3, 24);
+
+                // Angry face on trunk
+                ctx.fillStyle = '#3B2920';
+                // Knot-hole eyes (angry)
+                ctx.beginPath();
+                ctx.arc(x - 4, y - 22 + bobY, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + 5, y - 22 + bobY, 3, 0, Math.PI * 2);
+                ctx.fill();
+                // Red angry pupils
+                ctx.fillStyle = '#ff3300';
+                ctx.fillRect(x - 5, y - 23 + bobY, 2, 2);
+                ctx.fillRect(x + 4, y - 23 + bobY, 2, 2);
+                // Angry mouth
+                ctx.fillStyle = '#2B1910';
+                ctx.fillRect(x - 5, y - 16 + bobY, 10, 4);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x - 4, y - 16 + bobY, 2, 2);
+                ctx.fillRect(x + 2, y - 16 + bobY, 2, 2);
+
+                // Spiky branches (arms)
+                ctx.fillStyle = '#5C3A20';
+                // Left branch
+                ctx.save();
+                ctx.translate(x - 12, y - 26 + bobY);
+                ctx.rotate(-0.4);
+                ctx.fillRect(-12, -3, 14, 5);
+                ctx.fillRect(-14, -5, 4, 3);
+                ctx.fillRect(-8, -6, 3, 3);
+                ctx.restore();
+                // Right branch
+                ctx.save();
+                ctx.translate(x + 12, y - 26 + bobY);
+                ctx.rotate(0.4);
+                ctx.fillRect(-2, -3, 14, 5);
+                ctx.fillRect(10, -5, 4, 3);
+                ctx.fillRect(6, -6, 3, 3);
+                ctx.restore();
+
+                // Crown of spikes/thorns
+                ctx.fillStyle = '#4A3228';
+                ctx.fillRect(x - 8, y - 38 + bobY, 16, 5);
+                ctx.fillRect(x - 10, y - 42 + bobY, 4, 8);
+                ctx.fillRect(x - 3, y - 45 + bobY, 4, 12);
+                ctx.fillRect(x + 5, y - 42 + bobY, 4, 8);
+                // Spike tips
+                ctx.fillStyle = '#3B2920';
+                ctx.fillRect(x - 10, y - 44 + bobY, 3, 3);
+                ctx.fillRect(x - 3, y - 47 + bobY, 3, 3);
+                ctx.fillRect(x + 5, y - 44 + bobY, 3, 3);
+
+                // === WOODEN BARK SHIELD ===
+                const shieldTime = Date.now() / 50;
+                const shieldX = x - 18;
+                const shieldY = y - 22 + bobY;
+
+                // Shield body (wooden oval)
+                ctx.fillStyle = '#5C4033';
+                ctx.beginPath();
+                ctx.ellipse(shieldX, shieldY, 8, 20, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Wood grain lines
+                ctx.strokeStyle = '#8B6914';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(shieldX, shieldY, 8, 20, 0, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Wood grain texture
+                ctx.strokeStyle = '#6B4226';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(shieldX - 4, shieldY - 15);
+                ctx.quadraticCurveTo(shieldX - 2, shieldY, shieldX - 4, shieldY + 15);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(shieldX + 2, shieldY - 12);
+                ctx.quadraticCurveTo(shieldX + 4, shieldY, shieldX + 2, shieldY + 12);
+                ctx.stroke();
+
+                // Shield center knot
+                ctx.fillStyle = '#4A3228';
+                ctx.beginPath();
+                ctx.arc(shieldX, shieldY, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+            } else if (robot.isLightning) {
+                // === FIRE TREE MONSTER ===
+                const sparkle = Math.sin(Date.now() / 80) * 0.3 + 0.7;
+                const flicker = Math.sin(Date.now() / 60);
+                const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 3;
+
+                // Root feet
+                ctx.fillStyle = '#4A3228';
+                ctx.fillRect(x - 7 - legOffset, y - 5, 5, 6);
+                ctx.fillRect(x + 2 + legOffset, y - 5, 5, 6);
+                ctx.fillStyle = '#ff6600';
+                ctx.fillRect(x - 9 - legOffset, y, 7, 2);
+                ctx.fillRect(x + 2 + legOffset, y, 7, 2);
+
+                // Body - charred bark
+                ctx.fillStyle = '#3B2920';
+                ctx.fillRect(x - 10, y - 22 + bobY, 20, 18);
+                ctx.fillStyle = '#4A3228';
+                ctx.fillRect(x - 8, y - 20 + bobY, 16, 14);
+
+                // Flames around body
+                for (let f = 0; f < 5; f++) {
+                    const fx = x - 12 + f * 6;
+                    const fh = 6 + Math.sin(Date.now() / 40 + f * 2) * 3;
+                    // Outer flame
+                    ctx.fillStyle = `rgba(255, 100, 0, ${sparkle})`;
+                    ctx.fillRect(fx, y - 24 + bobY - fh, 4, fh);
+                    // Inner flame
+                    ctx.fillStyle = `rgba(255, 200, 50, ${sparkle * 0.8})`;
+                    ctx.fillRect(fx + 1, y - 22 + bobY - fh/2, 2, fh/2);
+                }
+                // Side flames
+                for (let f = 0; f < 3; f++) {
+                    const fy = y - 20 + f * 6 + bobY;
+                    const fw = 4 + Math.sin(Date.now() / 50 + f) * 2;
+                    ctx.fillStyle = `rgba(255, 100, 0, ${sparkle * 0.7})`;
+                    ctx.fillRect(x - 12 - fw, fy, fw, 3);
+                    ctx.fillRect(x + 10, fy, fw, 3);
+                }
+
+                // Ember core
+                ctx.fillStyle = `rgba(255, 200, 50, ${sparkle})`;
+                ctx.fillRect(x - 3, y - 16 + bobY, 6, 4);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x - 1, y - 14 + bobY, 2, 2);
+
+                // Head - burning
+                ctx.fillStyle = '#3B2920';
+                ctx.fillRect(x - 8, y - 28 + bobY, 16, 8);
+                // Fire eyes
+                ctx.fillStyle = '#111';
+                ctx.fillRect(x - 5, y - 26 + bobY, 10, 3);
+                ctx.fillStyle = `rgba(255, 100, 0, ${sparkle})`;
+                ctx.fillRect(x - 4, y - 25 + bobY, 3, 2);
+                ctx.fillRect(x + 1, y - 25 + bobY, 3, 2);
+
+                // Top flames (crown of fire)
+                for (let f = 0; f < 4; f++) {
+                    const fx = x - 7 + f * 5;
+                    const fh = 8 + Math.sin(Date.now() / 35 + f * 3) * 4;
+                    ctx.fillStyle = '#ff6600';
+                    ctx.fillRect(fx, y - 28 + bobY - fh, 3, fh);
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.fillRect(fx + 1, y - 28 + bobY - fh + 2, 1, fh - 4);
+                }
+
+                // Twig arms
+                ctx.fillStyle = '#3B2920';
+                ctx.fillRect(x - 13, y - 18 + bobY, 4, 10);
+                ctx.fillRect(x + 9, y - 18 + bobY, 4, 10);
+                ctx.fillStyle = '#ff6600';
+                ctx.fillRect(x - 13, y - 10 + bobY, 4, 3);
+                ctx.fillRect(x + 9, y - 10 + bobY, 4, 3);
+
+            } else if (robot.isGolden) {
+                // === GOLD TREE MONSTER ===
+                const sparkle = Math.sin(Date.now() / 80) * 0.3 + 0.7;
+                const shimmer = Math.sin(Date.now() / 120 + x * 0.1) * 0.2 + 0.8;
+                const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 3;
+
+                // Root feet - gold
+                ctx.fillStyle = '#b8860b';
+                ctx.fillRect(x - 7 - legOffset, y - 5, 5, 6);
+                ctx.fillRect(x + 2 + legOffset, y - 5, 5, 6);
+                ctx.fillStyle = '#ffd700';
+                ctx.fillRect(x - 9 - legOffset, y, 7, 2);
+                ctx.fillRect(x + 2 + legOffset, y, 7, 2);
+
+                // Body - golden bark
+                ctx.fillStyle = '#b8860b';
+                ctx.fillRect(x - 10, y - 22 + bobY, 20, 18);
+                ctx.fillStyle = `rgba(255, 215, 0, ${shimmer})`;
+                ctx.fillRect(x - 8, y - 20 + bobY, 16, 14);
+                // Wood grain in gold
+                ctx.fillStyle = '#daa520';
+                ctx.fillRect(x - 6, y - 18 + bobY, 2, 10);
+                ctx.fillRect(x + 3, y - 19 + bobY, 2, 8);
+
+                // Gold core
+                ctx.fillStyle = `rgba(255, 236, 139, ${sparkle})`;
+                ctx.fillRect(x - 3, y - 16 + bobY, 6, 4);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x - 1, y - 14 + bobY, 2, 2);
+
+                // Head - golden wood
+                ctx.fillStyle = '#daa520';
+                ctx.fillRect(x - 8, y - 28 + bobY, 16, 8);
+                ctx.fillStyle = `rgba(255, 215, 0, ${shimmer})`;
+                ctx.fillRect(x - 6, y - 26 + bobY, 12, 4);
+                // Knot-hole eyes
+                ctx.fillStyle = '#8b6914';
+                ctx.fillRect(x - 5, y - 26 + bobY, 10, 3);
+                ctx.fillStyle = `rgba(255, 236, 139, ${sparkle})`;
+                ctx.fillRect(x - 4, y - 25 + bobY, 3, 2);
+                ctx.fillRect(x + 1, y - 25 + bobY, 3, 2);
+
+                // Golden crown/canopy
+                ctx.fillStyle = '#ffd700';
+                ctx.beginPath();
+                ctx.arc(x, y - 32 + bobY, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = `rgba(255, 236, 139, ${shimmer})`;
+                ctx.beginPath();
+                ctx.arc(x, y - 33 + bobY, 7, 0, Math.PI * 2);
+                ctx.fill();
+                // Crown gems (like berries)
+                ctx.fillStyle = '#ff6347';
+                ctx.fillRect(x - 7, y - 33 + bobY, 3, 3);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(x - 1, y - 36 + bobY, 3, 3);
+                ctx.fillStyle = '#4169e1';
+                ctx.fillRect(x + 5, y - 33 + bobY, 3, 3);
+
+                // Branch arms - gold
+                ctx.fillStyle = '#daa520';
+                ctx.fillRect(x - 13, y - 18 + bobY, 4, 10);
+                ctx.fillRect(x + 9, y - 18 + bobY, 4, 10);
+                ctx.fillStyle = '#ffd700';
+                ctx.fillRect(x - 13, y - 10 + bobY, 4, 3);
+                ctx.fillRect(x + 9, y - 10 + bobY, 4, 3);
+
+                // Gold sparkle effects
+                ctx.fillStyle = `rgba(255, 255, 255, ${sparkle * 0.8})`;
+                const t = Date.now() / 100;
+                for (let sp = 0; sp < 4; sp++) {
+                    const spAngle = t + sp * Math.PI / 2;
+                    const spX = x + Math.cos(spAngle) * 14;
+                    const spY = y - 18 + Math.sin(spAngle) * 10 + bobY;
+                    ctx.fillRect(spX - 1, spY - 1, 3, 3);
+                }
+
+            } else {
+                // === STICK MONSTER (small scout equivalent) ===
+                const legOffset = Math.sin(robot.animFrame * Math.PI / 2) * 3;
+
+                // Twig legs
+                ctx.fillStyle = '#6B4226';
+                ctx.fillRect(x - 5 - legOffset, y - 5, 3, 6);
+                ctx.fillRect(x + 2 + legOffset, y - 5, 3, 6);
+                // Root feet
+                ctx.fillStyle = '#5C3A20';
+                ctx.fillRect(x - 7 - legOffset, y, 5, 2);
+                ctx.fillRect(x + 2 + legOffset, y, 5, 2);
+
+                // Stick body (bark-textured)
+                ctx.fillStyle = '#6B4226';
+                ctx.fillRect(x - 8, y - 22 + bobY, 16, 18);
+                ctx.fillStyle = '#7D4E2A';
+                ctx.fillRect(x - 6, y - 20 + bobY, 12, 14);
+                // Bark lines
+                ctx.fillStyle = '#5C3A20';
+                ctx.fillRect(x - 4, y - 18 + bobY, 2, 10);
+                ctx.fillRect(x + 2, y - 19 + bobY, 2, 8);
+
+                // Head (wooden knot)
+                ctx.fillStyle = '#6B4226';
+                ctx.fillRect(x - 7, y - 28 + bobY, 14, 8);
+                ctx.fillStyle = '#7D4E2A';
+                ctx.fillRect(x - 5, y - 26 + bobY, 10, 4);
+                // Knot-hole eyes
+                ctx.fillStyle = '#3B2920';
+                ctx.beginPath();
+                ctx.arc(x - 3, y - 24 + bobY, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + 3, y - 24 + bobY, 2, 0, Math.PI * 2);
+                ctx.fill();
+                // Pupils
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillRect(x - 3, y - 25 + bobY, 1, 1);
+                ctx.fillRect(x + 3, y - 25 + bobY, 1, 1);
+
+                // Small leaf on top
+                ctx.fillStyle = '#228B22';
+                ctx.fillRect(x - 1, y - 32 + bobY, 2, 4);
+                ctx.fillStyle = '#32CD32';
+                ctx.fillRect(x - 4, y - 34 + bobY, 4, 3);
+                ctx.fillRect(x + 1, y - 35 + bobY, 4, 3);
+
+                // Twig arms
+                ctx.fillStyle = '#6B4226';
+                ctx.fillRect(x - 11, y - 18 + bobY, 4, 8);
+                ctx.fillRect(x + 7, y - 18 + bobY, 4, 8);
+                // Twiggy fingers
+                ctx.fillStyle = '#5C3A20';
+                ctx.fillRect(x - 12, y - 12 + bobY, 2, 4);
+                ctx.fillRect(x - 9, y - 12 + bobY, 2, 4);
+                ctx.fillRect(x + 8, y - 12 + bobY, 2, 4);
+                ctx.fillRect(x + 10, y - 12 + bobY, 2, 4);
+            }
+
+            ctx.restore();
+        }
+
         function drawLightningBolt(bolt) {
             const ctx = game.ctx;
+            const lc = getCurrentLevel().colors;
+            const isJungle = getCurrentLevel().backgroundType === 'jungle';
             ctx.save();
 
             const flicker = Math.random() * 0.3 + 0.7;
             const direction = bolt.vx > 0 ? 1 : -1;
 
             // Draw glow first (behind)
-            ctx.strokeStyle = `rgba(0, 255, 255, 0.3)`;
+            ctx.strokeStyle = lc.boltGlow;
             ctx.lineWidth = 8;
             ctx.beginPath();
             ctx.moveTo(bolt.x, bolt.y);
@@ -3453,7 +4380,7 @@
             ctx.stroke();
 
             // Main bolt body
-            ctx.strokeStyle = `rgba(0, 255, 255, ${flicker})`;
+            ctx.strokeStyle = isJungle ? `rgba(255, 100, 0, ${flicker})` : `rgba(0, 255, 255, ${flicker})`;
             ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.moveTo(bolt.x, bolt.y);
@@ -3463,8 +4390,8 @@
             }
             ctx.stroke();
 
-            // Bright white core
-            ctx.strokeStyle = '#ffffff';
+            // Bright core
+            ctx.strokeStyle = lc.boltCore;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(bolt.x, bolt.y);
@@ -3473,6 +4400,18 @@
                 ctx.lineTo(bolt.x + i * segmentWidth, bolt.y + jag);
             }
             ctx.stroke();
+
+            // Fire particles along bolt for jungle
+            if (isJungle) {
+                for (let i = 0; i < segments; i++) {
+                    if (Math.random() > 0.5) {
+                        const px = bolt.x + i * segmentWidth;
+                        const py = bolt.y + ((i % 2 === 0) ? 2 : -2);
+                        ctx.fillStyle = Math.random() < 0.5 ? '#ff6600' : '#ffcc00';
+                        ctx.fillRect(px - 1, py - 3 - Math.random() * 3, 2, 3);
+                    }
+                }
+            }
 
             ctx.restore();
         }
@@ -3700,9 +4639,19 @@
                 // Draw on-screen keyboard
                 drawTouchKeyboard();
 
+                // Unlock notification (if applicable)
+                if (game.newUnlock) {
+                    const blink = Math.sin(Date.now() / 200) > 0;
+                    ctx.fillStyle = blink ? '#32CD32' : '#228B22';
+                    ctx.font = 'bold 9px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('JUNGLE LEVEL UNLOCKED!', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT - 20);
+                }
+
                 // Skip option
                 ctx.fillStyle = '#666';
                 ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
                 ctx.fillText('ESC to skip', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT - 8);
 
             } else {
@@ -3716,9 +4665,20 @@
                 ctx.font = 'bold 14px monospace';
                 ctx.fillText('FINAL SCORE: ' + game.score, CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 10);
 
-                // Restart prompt
-                ctx.font = '10px monospace';
-                ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 35);
+                // Unlock notification
+                if (game.newUnlock) {
+                    const blink = Math.sin(Date.now() / 200) > 0;
+                    ctx.fillStyle = blink ? '#32CD32' : '#228B22';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.fillText('YOU UNLOCKED THE JUNGLE LEVEL!', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 30);
+                    ctx.font = '10px monospace';
+                    ctx.fillStyle = '#aaa';
+                    ctx.fillText('Press SPACE or tap to continue', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 48);
+                } else {
+                    // Restart prompt
+                    ctx.font = '10px monospace';
+                    ctx.fillText('Press SPACE or tap to play again', CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2 + 35);
+                }
             }
         }
 
@@ -3798,6 +4758,32 @@
             ctx.fillText('Tap or type letters', CONFIG.BASE_WIDTH / 2, bottomY + btnSize + 12);
 
             ctx.textAlign = 'left';
+        }
+
+        function handleLevelSelectTouch(canvasX, canvasY) {
+            const centerX = CONFIG.BASE_WIDTH / 2;
+            const tileW = 120, tileH = 100;
+            const gap = 20;
+            const tileY = 55;
+            // Generous tap area (include label area below tile)
+            const tapH = tileH + 20;
+
+            // City tile (left)
+            const cityX = centerX - gap/2 - tileW;
+            if (canvasX >= cityX && canvasX <= cityX + tileW &&
+                canvasY >= tileY && canvasY <= tileY + tapH) {
+                selectLevel('city');
+                return;
+            }
+
+            // Jungle tile (right)
+            const jungleX = centerX + gap/2;
+            if (game.jungleUnlocked &&
+                canvasX >= jungleX && canvasX <= jungleX + tileW &&
+                canvasY >= tileY && canvasY <= tileY + tapH) {
+                selectLevel('jungle');
+                return;
+            }
         }
 
         function handleKeyboardTouch(canvasX, canvasY) {
