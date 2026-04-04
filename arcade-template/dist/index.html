@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Arcade Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        /* Tablet landscape */
+        @media (pointer: coarse) and (min-width: 700px) and (orientation: landscape) {
+            body { padding: 0; justify-content: center; overflow: hidden; }
+            #highScores { display: none; }
+            #gameContainer {
+                width: 100%; height: 100dvh;
+                display: flex; align-items: center; justify-content: center;
+            }
+        }
+
+        #gameContainer {
+            position: relative;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        #gameCanvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            border: 4px solid #4a4a6a;
+            border-radius: 4px;
+        }
+
+        #muteBtn {
+            position: absolute; top: 10px; right: 10px;
+            width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.3);
+            font-size: 20px; cursor: pointer; z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        #muteBtn:hover { background: rgba(0,0,0,0.7); }
+
+        #touchControls {
+            position: absolute; bottom: 20px; left: 0; right: 0;
+            display: none; justify-content: space-between;
+            padding: 0 20px; pointer-events: none;
+        }
+
+        .touchBtn {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: 3px solid rgba(255,255,255,0.4);
+            color: white; font-size: 14px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: auto; user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .touchBtn:active { background: rgba(255,255,255,0.4); }
+
+        /* Bigger touch buttons for tablets */
+        @media (pointer: coarse) and (min-width: 700px) {
+            #touchControls {
+                bottom: 40px; padding: 0 60px;
+                padding-left: max(60px, env(safe-area-inset-left));
+                padding-right: max(60px, env(safe-area-inset-right));
+                padding-bottom: env(safe-area-inset-bottom, 0);
+            }
+            .touchBtn { width: 120px; height: 120px; font-size: 20px; border-width: 4px; }
+        }
+
+        @media (pointer: coarse) {
+            #touchControls { display: flex; }
+            #instructions { display: none; }
+        }
+
+        @media (max-height: 700px) {
+            #highScores h2 { font-size: 14px; margin-bottom: 5px; }
+            .scoreEntry { font-size: 12px; margin: 2px 0; }
+        }
+
+        #instructions {
+            color: #aaa; text-align: center; margin-top: 15px; font-size: 14px;
+        }
+        #instructions p { margin: 5px 0; }
+        #instructions strong { color: #ffd700; }
+
+        #highScores {
+            color: #fff; text-align: center; margin-top: 15px;
+            font-family: 'Courier New', monospace;
+        }
+        #highScores h2 {
+            color: #ffd700; font-size: 18px; margin-bottom: 10px; letter-spacing: 2px;
+        }
+        .scoreEntry {
+            font-size: 14px; margin: 4px 0; transition: all 0.3s; color: #888;
+        }
+        .scoreEntry.new { animation: newScore 0.5s ease-out; color: #ffd700; }
+        .scoreEntry .rank { color: #666; }
+        .scoreEntry .name { color: #aaa; margin: 0 10px; }
+        .scoreEntry .score { color: #999; }
+
+        @keyframes newScore {
+            0% { transform: scale(2); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="touchControls"></div>
+        <button id="muteBtn" aria-label="Toggle sound"></button>
+    </div>
+    <div id="instructions"></div>
+    <div id="highScores">
+        <h2>HIGH SCORES</h2>
+        <div id="scoreList">
+            <div class="scoreEntry"><span class="rank">&#x1F947;</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">&#x1F948;</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">&#x1F949;</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">4.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">5.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">6.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">7.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">8.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">9.</span> <span class="name">---</span> <span class="score">000000</span></div>
+            <div class="scoreEntry"><span class="rank">10.</span> <span class="name">---</span> <span class="score">000000</span></div>
+        </div>
+    </div>
+
+    <script>
+        // ---- src/game-config.js ----
+// ==================== GAME CONFIGURATION ====================
+// Edit this file to configure your game.
+
+const GAME = {
+    title: 'BLOCK DODGE',
+    subtitle: 'HOW LONG CAN YOU SURVIVE?',
+    version: 'v1',
+    bgColor: '#1a1a2e',
+
+    // Firebase - see README.md for setup instructions
+    // Leave as-is to use local-only high scores
+    firebase: {
+        apiKey: "",
+        authDomain: "",
+        databaseURL: "",
+        projectId: "",
+        storageBucket: "",
+        messagingSenderId: "",
+        appId: ""
+    },
+    firebasePath: 'highscores',
+    localStoragePrefix: 'blockDodge',
+
+    // Canvas resolution (384x216 = SNES-style, recommended)
+    width: 384,
+    height: 216,
+
+    // Touch controls - each becomes a button on mobile
+    // id: used as Engine.input[id]
+    // label: button text
+    // keys: keyboard codes that map to this control
+    controls: [
+        { id: 'left',  label: 'LEFT',  keys: ['ArrowLeft', 'KeyA'] },
+        { id: 'right', label: 'RIGHT', keys: ['ArrowRight', 'KeyD'] }
+    ],
+
+    // Desktop instructions (hidden on touch devices)
+    instructions: [
+        { label: 'MOVE LEFT', keys: 'Arrow Left or A' },
+        { label: 'MOVE RIGHT', keys: 'Arrow Right or D' }
+    ]
+};
+
+
+// ---- src/engine/canvas.js ----
+// ==================== CANVAS & SCALING ====================
+
+function setupCanvas() {
+    Engine.canvas = document.getElementById('gameCanvas');
+    Engine.ctx = Engine.canvas.getContext('2d');
+    Engine.canvas.width = GAME.width;
+    Engine.canvas.height = GAME.height;
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Set page background and title
+    document.body.style.background = GAME.bgColor;
+    document.title = GAME.title;
+}
+
+function resizeCanvas() {
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+    const isLandscapeTablet = isTouchDevice && window.innerWidth >= 700 && window.innerWidth > window.innerHeight;
+
+    let maxWidth, maxHeight;
+
+    if (isLandscapeTablet) {
+        maxWidth = window.innerWidth;
+        maxHeight = window.innerHeight;
+    } else {
+        maxWidth = window.innerWidth - 20;
+        const reservedHeight = isTouchDevice ? 120 : 180;
+        maxHeight = window.innerHeight - reservedHeight;
+    }
+
+    let scale = Math.min(
+        maxWidth / GAME.width,
+        maxHeight / GAME.height
+    );
+
+    if (isLandscapeTablet) {
+        scale = Math.max(1, scale);
+    } else {
+        scale = Math.max(1, Math.floor(scale));
+    }
+
+    Engine.canvas.style.width = (GAME.width * scale) + 'px';
+    Engine.canvas.style.height = (GAME.height * scale) + 'px';
+}
+
+
+// ---- src/engine/sound.js ----
+// ==================== SOUND ENGINE ====================
+
+const Sound = {
+    ctx: null,
+    enabled: true,
+
+    init() {
+        const prefix = GAME.localStoragePrefix;
+        this.enabled = localStorage.getItem(prefix + 'Sound') !== 'off';
+
+        const muteBtn = document.getElementById('muteBtn');
+        if (muteBtn) muteBtn.textContent = this.enabled ? '\uD83D\uDD0A' : '\uD83D\uDD07';
+
+        const initAudio = () => {
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            document.removeEventListener('touchstart', initAudio);
+            document.removeEventListener('keydown', initAudio);
+            document.removeEventListener('click', initAudio);
+        };
+        document.addEventListener('touchstart', initAudio);
+        document.addEventListener('keydown', initAudio);
+        document.addEventListener('click', initAudio);
+
+        // Mute button
+        muteBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.enabled = !this.enabled;
+            muteBtn.textContent = this.enabled ? '\uD83D\uDD0A' : '\uD83D\uDD07';
+            localStorage.setItem(prefix + 'Sound', this.enabled ? 'on' : 'off');
+        });
+        muteBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+    },
+
+    play(name) {
+        if (!this.ctx || !this.enabled) return;
+        if (typeof SOUNDS !== 'undefined' && SOUNDS[name]) {
+            SOUNDS[name](this);
+        }
+    },
+
+    playTone(startFreq, endFreq, duration, type, volume) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type || 'square';
+        osc.frequency.setValueAtTime(startFreq, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(endFreq, this.ctx.currentTime + duration);
+        gain.gain.setValueAtTime(volume || 0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    },
+
+    playNoise(duration, startFreq, endFreq) {
+        if (!this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = this.ctx.createBufferSource();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+        noise.buffer = buffer;
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(startFreq || 1000, this.ctx.currentTime);
+        filter.frequency.linearRampToValueAtTime(endFreq || 200, this.ctx.currentTime + duration);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + duration);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    }
+};
+
+
+// ---- src/engine/highscores.js ----
+// ==================== HIGH SCORE SYSTEM ====================
+
+const HighScores = {
+    scores: [],
+    lastPlayerName: '',
+    database: null,
+
+    init() {
+        // Initialize 10 empty slots
+        this.scores = Array.from({ length: 10 }, () => ({ name: '---', score: 0 }));
+        this.lastPlayerName = sessionStorage.getItem(GAME.localStoragePrefix + 'LastName') || '';
+
+        // Initialize Firebase if configured
+        if (GAME.firebase.apiKey && GAME.firebase.databaseURL) {
+            try {
+                firebase.initializeApp(GAME.firebase);
+                this.database = firebase.database();
+            } catch (e) {
+                // Firebase may already be initialized or config invalid
+                console.warn('Firebase init:', e.message);
+            }
+        }
+
+        this.load();
+    },
+
+    load() {
+        const saved = localStorage.getItem(GAME.localStoragePrefix + 'HighScores');
+        if (saved) {
+            this.scores = JSON.parse(saved);
+        }
+        this.updateDisplay();
+
+        if (this.database) {
+            this.syncWithFirebase();
+        }
+    },
+
+    syncWithFirebase() {
+        const localScores = this.scores.filter(s => s.score > 0);
+
+        this.database.ref(GAME.firebasePath)
+            .orderByChild('score')
+            .limitToLast(50)
+            .once('value', (snapshot) => {
+                const globalScores = [];
+                snapshot.forEach((child) => globalScores.push(child.val()));
+
+                localScores.forEach(local => {
+                    const exists = globalScores.some(g =>
+                        g.name === local.name && g.score === local.score
+                    );
+                    if (!exists && local.name !== '---') {
+                        this.saveToFirebase(local.name, local.score);
+                    }
+                });
+
+                this.loadGlobalHighScores();
+            });
+    },
+
+    loadGlobalHighScores() {
+        this.database.ref(GAME.firebasePath)
+            .orderByChild('score')
+            .limitToLast(10)
+            .on('value', (snapshot) => {
+                const globalScores = [];
+                snapshot.forEach((child) => globalScores.push(child.val()));
+                globalScores.sort((a, b) => b.score - a.score);
+
+                if (globalScores.length > 0) {
+                    while (globalScores.length < 10) {
+                        globalScores.push({ name: '---', score: 0 });
+                    }
+                    this.scores = globalScores;
+                    this.save();
+                    this.updateDisplay();
+                }
+            });
+    },
+
+    save() {
+        localStorage.setItem(GAME.localStoragePrefix + 'HighScores', JSON.stringify(this.scores));
+    },
+
+    saveToFirebase(name, score) {
+        if (!this.database) return;
+        const scoreId = name + '_' + score + '_' + Date.now();
+        const scoreData = { name: name, score: score, timestamp: Date.now() };
+
+        fetch('https://ipapi.co/json/')
+            .then(res => res.json())
+            .then(data => {
+                scoreData.ip = data.ip;
+                scoreData.city = data.city;
+                scoreData.country = data.country_name;
+                this.database.ref(GAME.firebasePath + '/' + scoreId).set(scoreData);
+            })
+            .catch(() => {
+                this.database.ref(GAME.firebasePath + '/' + scoreId).set(scoreData);
+            });
+    },
+
+    updateDisplay() {
+        const entries = document.querySelectorAll('.scoreEntry');
+        entries.forEach((entry, i) => {
+            if (this.scores[i]) {
+                entry.querySelector('.name').textContent = this.scores[i].name;
+                entry.querySelector('.score').textContent = String(this.scores[i].score).padStart(6, '0');
+            }
+        });
+    },
+
+    check(score) {
+        for (let i = 0; i < 10; i++) {
+            if (score > this.scores[i].score) return i;
+        }
+        return -1;
+    },
+
+    add(name, score, rank) {
+        this.lastPlayerName = name.toUpperCase();
+        sessionStorage.setItem(GAME.localStoragePrefix + 'LastName', this.lastPlayerName);
+
+        this.scores.splice(rank, 0, { name: name.toUpperCase(), score: score });
+        this.scores = this.scores.slice(0, 10);
+        this.save();
+        this.saveToFirebase(name.toUpperCase(), score);
+
+        this.updateDisplay();
+        const entries = document.querySelectorAll('.scoreEntry');
+        if (entries[rank]) {
+            entries[rank].classList.add('new');
+            setTimeout(() => entries[rank].classList.remove('new'), 1000);
+        }
+    }
+};
+
+
+// ---- src/engine/input.js ----
+// ==================== INPUT MANAGER ====================
+
+function setupInput() {
+    // Build key-to-action map from GAME.controls
+    const keyMap = {};
+    GAME.controls.forEach(ctrl => {
+        ctrl.keys.forEach(key => { keyMap[key] = ctrl.id; });
+    });
+
+    // Generate touch buttons
+    const touchControls = document.getElementById('touchControls');
+    touchControls.innerHTML = '';
+    GAME.controls.forEach(ctrl => {
+        const btn = document.createElement('div');
+        btn.className = 'touchBtn';
+        btn.id = 'touch_' + ctrl.id;
+        btn.textContent = ctrl.label;
+        touchControls.appendChild(btn);
+    });
+
+    // Generate instructions
+    const instructions = document.getElementById('instructions');
+    instructions.innerHTML = '';
+    GAME.instructions.forEach(inst => {
+        const p = document.createElement('p');
+        p.innerHTML = '<strong>' + inst.label + ':</strong> ' + inst.keys;
+        instructions.appendChild(p);
+    });
+
+    // Keyboard
+    document.addEventListener('keydown', (e) => {
+        if (Engine.state.showTitleScreen) {
+            e.preventDefault();
+            startGame();
+            return;
+        }
+
+        if (Engine.state.gameOver && Engine.state.enteringName) {
+            e.preventDefault();
+            handleNameEntryKey(e);
+            return;
+        }
+
+        if (Engine.state.gameOver) {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                e.preventDefault();
+                restartGame();
+            }
+            return;
+        }
+
+        const action = keyMap[e.code];
+        if (action) {
+            e.preventDefault();
+            Engine.input[action] = true;
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        const action = keyMap[e.code];
+        if (action) {
+            Engine.input[action] = false;
+        }
+    });
+
+    // Touch buttons
+    GAME.controls.forEach(ctrl => {
+        const btn = document.getElementById('touch_' + ctrl.id);
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (Engine.state.showTitleScreen) { startGame(); return; }
+            if (Engine.state.gameOver && !Engine.state.enteringName) { restartGame(); return; }
+            Engine.input[ctrl.id] = true;
+        });
+        btn.addEventListener('touchend', () => { Engine.input[ctrl.id] = false; });
+    });
+
+    // Canvas click/touch for title, game over, name entry
+    function handleCanvasInteraction(e) {
+        e.preventDefault();
+        const rect = Engine.canvas.getBoundingClientRect();
+        const scaleX = GAME.width / rect.width;
+        const scaleY = GAME.height / rect.height;
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        const canvasX = (clientX - rect.left) * scaleX;
+        const canvasY = (clientY - rect.top) * scaleY;
+
+        if (Engine.state.showTitleScreen) { startGame(); return; }
+
+        if (Engine.state.gameOver) {
+            if (Engine.state.enteringName) {
+                handleKeyboardTouch(canvasX, canvasY);
+            } else {
+                restartGame();
+            }
+        }
+    }
+
+    Engine.canvas.addEventListener('click', handleCanvasInteraction);
+    Engine.canvas.addEventListener('touchstart', handleCanvasInteraction);
+}
+
+function handleNameEntryKey(e) {
+    if (e.code === 'Escape') {
+        Engine.state.enteringName = false;
+    } else if (e.code === 'Enter' && Engine.state.playerName.length === 3) {
+        HighScores.add(Engine.state.playerName, Engine.state.score, Engine.state.newHighScoreRank);
+        Engine.state.enteringName = false;
+    } else if (e.code === 'Backspace' && Engine.state.playerName.length > 0) {
+        Engine.state.playerName = Engine.state.playerName.slice(0, -1);
+    } else if (e.key.length === 1 && e.key.match(/[a-zA-Z]/) && Engine.state.playerName.length < 3) {
+        Engine.state.playerName += e.key.toUpperCase();
+    }
+}
+
+function startGame() {
+    Engine.state.showTitleScreen = false;
+    Sound.play('start');
+    restartGame();
+}
+
+function restartGame() {
+    Engine.state.score = 0;
+    Engine.state.health = 3;
+    Engine.state.maxHealth = 3;
+    Engine.state.gameOver = false;
+    Engine.state.enteringName = false;
+    Engine.state.playerName = '';
+    Engine.state.newHighScoreRank = -1;
+    Engine.particles = [];
+    Engine.scorePopups = [];
+    // Reset all inputs
+    GAME.controls.forEach(ctrl => { Engine.input[ctrl.id] = false; });
+    // Call game-specific init
+    if (typeof gameInit === 'function') gameInit();
+}
+
+
+// ---- src/engine/particles.js ----
+// ==================== PARTICLES & SCORE POPUPS ====================
+
+function updateParticles(dt) {
+    for (let i = Engine.particles.length - 1; i >= 0; i--) {
+        const p = Engine.particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) Engine.particles.splice(i, 1);
+    }
+}
+
+function drawParticles(ctx) {
+    for (const p of Engine.particles) {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+}
+
+function updateScorePopups(dt) {
+    for (let i = Engine.scorePopups.length - 1; i >= 0; i--) {
+        const popup = Engine.scorePopups[i];
+        popup.y -= 0.5 * dt;
+        popup.life -= dt;
+        if (popup.life <= 0) Engine.scorePopups.splice(i, 1);
+    }
+}
+
+function drawScorePopups(ctx) {
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'center';
+    for (const popup of Engine.scorePopups) {
+        ctx.fillStyle = popup.color || '#ffd700';
+        ctx.globalAlpha = Math.max(0, popup.life / popup.maxLife);
+        ctx.fillText(popup.text, popup.x, popup.y);
+    }
+    ctx.globalAlpha = 1;
+}
+
+
+// ---- src/engine/screens.js ----
+// ==================== TITLE, GAME OVER, NAME ENTRY SCREENS ====================
+
+const touchKeyboard = {
+    letters: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+    btnSize: 20,
+    gap: 2,
+    cols: 9,
+    startX: 0,
+    startY: 92
+};
+
+function drawTitleScreen(ctx) {
+    const w = GAME.width;
+    const h = GAME.height;
+    const time = Date.now() / 1000;
+    const centerX = w / 2;
+
+    // Let game draw custom title art behind text
+    if (typeof gameTitleRender === 'function') {
+        gameTitleRender(ctx, w, h, time);
+    }
+
+    // Title shadow
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 28px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(GAME.title, centerX + 2, h / 2 - 20 + 2);
+
+    // Title text
+    ctx.fillStyle = '#ff4757';
+    ctx.fillText(GAME.title, centerX, h / 2 - 20);
+
+    // Title highlight
+    ctx.fillStyle = '#ff6b6b';
+    ctx.fillText(GAME.title, centerX - 1, h / 2 - 21);
+
+    // Subtitle
+    if (GAME.subtitle) {
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(GAME.subtitle, centerX, h / 2 - 2);
+    }
+
+    // Prompt (blinking)
+    if (Math.sin(time * 3) > 0) {
+        ctx.fillStyle = '#aaaaaa';
+        ctx.font = '10px monospace';
+        ctx.fillText('Press any key or tap to start', centerX, h / 2 + 25);
+    }
+
+    // Version
+    ctx.fillStyle = '#555';
+    ctx.font = '8px monospace';
+    ctx.fillText(GAME.version, centerX, h - 8);
+
+    ctx.textAlign = 'left';
+}
+
+function drawUI(ctx) {
+    // Score
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('SCORE: ' + String(Engine.state.score).padStart(6, '0'), 10, 20);
+
+    // Health (hearts)
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ff4757';
+    ctx.font = '14px monospace';
+    for (let i = 0; i < Engine.state.maxHealth; i++) {
+        const x = GAME.width - 16 - i * 18;
+        const y = 14;
+        if (i < Engine.state.health) {
+            // Filled heart
+            drawHeart(ctx, x, y, 6, '#ff4757');
+        } else {
+            // Empty heart
+            drawHeart(ctx, x, y, 6, '#333');
+        }
+    }
+    ctx.textAlign = 'left';
+}
+
+function drawHeart(ctx, cx, cy, size, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    const x = cx - size;
+    const y = cy - size * 0.5;
+    ctx.moveTo(cx, y + size * 1.5);
+    ctx.bezierCurveTo(cx - size * 2, y - size * 0.5, cx - size * 2, y + size, cx, y + size * 1.5);
+    ctx.moveTo(cx, y + size * 1.5);
+    ctx.bezierCurveTo(cx + size * 2, y - size * 0.5, cx + size * 2, y + size, cx, y + size * 1.5);
+    ctx.fill();
+}
+
+function drawGameOverScreen(ctx) {
+    const w = GAME.width;
+    const h = GAME.height;
+
+    // Let game draw behind overlay
+    if (typeof gameOverRender === 'function') {
+        gameOverRender(ctx, w, h);
+    }
+
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center';
+
+    if (Engine.state.enteringName) {
+        // GAME OVER
+        ctx.fillStyle = '#ff4757';
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText('GAME OVER', w / 2, 22);
+
+        // Score
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText('SCORE: ' + Engine.state.score, w / 2, 40);
+
+        // New high score
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('NEW HIGH SCORE!', w / 2, 56);
+
+        // Name entry boxes
+        ctx.font = 'bold 14px monospace';
+        const displayName = Engine.state.playerName.padEnd(3, '_');
+        const startX = w / 2 - 30;
+        for (let i = 0; i < 3; i++) {
+            const letterX = startX + i * 20;
+            ctx.fillStyle = i < Engine.state.playerName.length ? '#5c6bc0' : '#333';
+            ctx.fillRect(letterX, 65, 18, 20);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(displayName[i], letterX + 9, 80);
+        }
+
+        drawTouchKeyboard(ctx);
+
+        // Skip hint
+        ctx.fillStyle = '#666';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('ESC to skip', w / 2, h - 8);
+    } else {
+        // Standard game over
+        ctx.fillStyle = '#ff4757';
+        ctx.font = 'bold 24px monospace';
+        ctx.fillText('GAME OVER', w / 2, h / 2 - 20);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText('FINAL SCORE: ' + Engine.state.score, w / 2, h / 2 + 10);
+
+        ctx.font = '10px monospace';
+        ctx.fillText('Press SPACE or tap to play again', w / 2, h / 2 + 35);
+    }
+
+    ctx.textAlign = 'left';
+}
+
+// ==================== TOUCH KEYBOARD ====================
+
+function drawTouchKeyboard(ctx) {
+    const btnSize = 20;
+    const gap = 2;
+    const cols = 9;
+    const startX = (GAME.width - (cols * (btnSize + gap))) / 2;
+    const startY = 92;
+
+    touchKeyboard.startX = startX;
+    touchKeyboard.startY = startY;
+    touchKeyboard.btnSize = btnSize;
+    touchKeyboard.gap = gap;
+    touchKeyboard.cols = cols;
+
+    // Letter buttons (3 rows)
+    for (let i = 0; i < 26; i++) {
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const x = startX + col * (btnSize + gap);
+        const y = startY + row * (btnSize + gap);
+
+        ctx.fillStyle = '#444';
+        ctx.fillRect(x, y, btnSize, btnSize);
+        ctx.fillStyle = '#666';
+        ctx.fillRect(x, y, btnSize, 2);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(touchKeyboard.letters[i], x + btnSize / 2, y + btnSize / 2 + 4);
+    }
+
+    // Bottom row: DEL, SKIP, OK
+    const bottomY = startY + 3 * (btnSize + gap);
+
+    // DEL
+    ctx.fillStyle = '#833';
+    ctx.fillRect(startX, bottomY, btnSize * 2, btnSize);
+    ctx.fillStyle = '#a55';
+    ctx.fillRect(startX, bottomY, btnSize * 2, 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('DEL', startX + btnSize, bottomY + btnSize / 2 + 4);
+
+    // SKIP
+    const skipX = startX + 2 * (btnSize + gap) + gap;
+    ctx.fillStyle = '#555';
+    ctx.fillRect(skipX, bottomY, btnSize * 3, btnSize);
+    ctx.fillStyle = '#777';
+    ctx.fillRect(skipX, bottomY, btnSize * 3, 2);
+    ctx.fillStyle = '#ccc';
+    ctx.fillText('SKIP', skipX + (btnSize * 3) / 2, bottomY + btnSize / 2 + 4);
+
+    // OK
+    const okX = startX + 6 * (btnSize + gap);
+    const okEnabled = Engine.state.playerName.length === 3;
+    ctx.fillStyle = okEnabled ? '#383' : '#333';
+    ctx.fillRect(okX, bottomY, btnSize * 3, btnSize);
+    if (okEnabled) {
+        ctx.fillStyle = '#5a5';
+        ctx.fillRect(okX, bottomY, btnSize * 3, 2);
+    }
+    ctx.fillStyle = okEnabled ? '#fff' : '#666';
+    ctx.fillText('OK', okX + (btnSize * 3) / 2, bottomY + btnSize / 2 + 4);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.fillText('Tap or type letters', GAME.width / 2, bottomY + btnSize + 12);
+    ctx.textAlign = 'left';
+}
+
+function handleKeyboardTouch(canvasX, canvasY) {
+    if (!Engine.state.enteringName) return;
+
+    const kb = touchKeyboard;
+    const btnSize = kb.btnSize;
+    const gap = kb.gap;
+    const cols = kb.cols;
+    const startX = kb.startX;
+    const startY = kb.startY;
+
+    // Letter buttons
+    for (let i = 0; i < 26; i++) {
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const x = startX + col * (btnSize + gap);
+        const y = startY + row * (btnSize + gap);
+        if (canvasX >= x && canvasX < x + btnSize && canvasY >= y && canvasY < y + btnSize) {
+            if (Engine.state.playerName.length < 3) {
+                Engine.state.playerName += kb.letters[i];
+            }
+            return;
+        }
+    }
+
+    const bottomY = startY + 3 * (btnSize + gap);
+
+    // DEL
+    if (canvasX >= startX && canvasX < startX + btnSize * 2 &&
+        canvasY >= bottomY && canvasY < bottomY + btnSize) {
+        if (Engine.state.playerName.length > 0) {
+            Engine.state.playerName = Engine.state.playerName.slice(0, -1);
+        }
+        return;
+    }
+
+    // SKIP
+    const skipX = startX + 2 * (btnSize + gap) + gap;
+    if (canvasX >= skipX && canvasX < skipX + btnSize * 3 &&
+        canvasY >= bottomY && canvasY < bottomY + btnSize) {
+        Engine.state.enteringName = false;
+        return;
+    }
+
+    // OK
+    const okX = startX + 6 * (btnSize + gap);
+    if (canvasX >= okX && canvasX < okX + btnSize * 3 &&
+        canvasY >= bottomY && canvasY < bottomY + btnSize) {
+        if (Engine.state.playerName.length === 3) {
+            HighScores.add(Engine.state.playerName, Engine.state.score, Engine.state.newHighScoreRank);
+            Engine.state.enteringName = false;
+        }
+        return;
+    }
+}
+
+
+// ---- src/engine/loop.js ----
+// ==================== GAME LOOP ====================
+
+let _lastTime = 0;
+const _TARGET_FPS = 60;
+const _FRAME_TIME = 1000 / _TARGET_FPS;
+
+// Debug
+const DEBUG = {
+    showFps: new URLSearchParams(window.location.search).get('debug') === 'fps',
+    fps: 0, fpsFrames: 0, fpsLastTime: 0, frameTime: 0
+};
+
+function gameLoop(currentTime) {
+    requestAnimationFrame(gameLoop);
+
+    if (!Engine.state.running) return;
+
+    const frameStart = performance.now();
+    const deltaTime = _lastTime ? Math.min((currentTime - _lastTime) / _FRAME_TIME, 3) : 1;
+    _lastTime = currentTime;
+
+    const ctx = Engine.ctx;
+    const w = GAME.width;
+    const h = GAME.height;
+
+    // Clear canvas
+    ctx.fillStyle = GAME.bgColor;
+    ctx.fillRect(0, 0, w, h);
+
+    // Title screen
+    if (Engine.state.showTitleScreen) {
+        drawTitleScreen(ctx);
+        return;
+    }
+
+    // Update game logic
+    if (!Engine.state.gameOver) {
+        if (typeof gameUpdate === 'function') {
+            gameUpdate(deltaTime);
+        }
+        updateParticles(deltaTime);
+        updateScorePopups(deltaTime);
+
+        // Check for game over
+        if (Engine.state.health <= 0) {
+            Engine.state.health = 0;
+            Engine.state.gameOver = true;
+            Sound.play('gameOver');
+            Engine.state.newHighScoreRank = HighScores.check(Engine.state.score);
+            if (Engine.state.newHighScoreRank >= 0) {
+                Engine.state.enteringName = true;
+                Engine.state.playerName = HighScores.lastPlayerName;
+            }
+        }
+    }
+
+    // Render game
+    if (typeof gameRender === 'function') {
+        gameRender(ctx, w, h);
+    }
+
+    // Draw engine overlays
+    drawParticles(ctx);
+    drawScorePopups(ctx);
+
+    if (!Engine.state.gameOver) {
+        drawUI(ctx);
+    }
+
+    if (Engine.state.gameOver) {
+        drawGameOverScreen(ctx);
+    }
+
+    // Debug FPS
+    if (DEBUG.showFps) {
+        DEBUG.frameTime = performance.now() - frameStart;
+        DEBUG.fpsFrames++;
+        if (currentTime - DEBUG.fpsLastTime >= 1000) {
+            DEBUG.fps = DEBUG.fpsFrames;
+            DEBUG.fpsFrames = 0;
+            DEBUG.fpsLastTime = currentTime;
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(5, h - 25, 55, 20);
+        ctx.fillStyle = DEBUG.fps >= 55 ? '#44ff44' : (DEBUG.fps >= 40 ? '#ffff44' : '#ff4444');
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('FPS: ' + DEBUG.fps, 10, h - 10);
+    }
+}
+
+
+// ---- src/engine/engine.js ----
+// ==================== ENGINE (ties everything together) ====================
+
+const Engine = {
+    canvas: null,
+    ctx: null,
+
+    state: {
+        running: false,
+        showTitleScreen: true,
+        gameOver: false,
+        score: 0,
+        health: 3,
+        maxHealth: 3,
+        enteringName: false,
+        playerName: '',
+        newHighScoreRank: -1
+    },
+
+    input: {},
+
+    particles: [],
+    scorePopups: [],
+
+    // Public API
+    Sound: Sound,
+    HighScores: HighScores,
+
+    spawnParticle(x, y, vx, vy, size, color, life) {
+        this.particles.push({ x, y, vx, vy, size, color, life, maxLife: life });
+    },
+
+    showScorePopup(x, y, text, color) {
+        this.scorePopups.push({ x, y, text, color: color || '#ffd700', life: 40, maxLife: 40 });
+    },
+
+    init() {
+        // Initialize input state for all controls
+        GAME.controls.forEach(ctrl => { this.input[ctrl.id] = false; });
+
+        setupCanvas();
+        Sound.init();
+        HighScores.init();
+        setupInput();
+
+        this.state.running = true;
+        this.state.showTitleScreen = true;
+        requestAnimationFrame(gameLoop);
+    }
+};
+
+// Boot
+window.addEventListener('load', () => Engine.init());
+
+
+// ---- src/game-sounds.js ----
+// ==================== GAME SOUNDS ====================
+// Define sounds as functions that receive the Sound engine (S).
+// Use S.playTone(startFreq, endFreq, duration, waveType, volume)
+// and S.playNoise(duration, startFreq, endFreq)
+
+const SOUNDS = {
+    start: (S) => {
+        S.playTone(300, 400, 0.1, 'square', 0.3);
+        setTimeout(() => S.playTone(400, 500, 0.1, 'square', 0.3), 100);
+        setTimeout(() => S.playTone(600, 700, 0.15, 'square', 0.3), 200);
+    },
+
+    gameOver: (S) => {
+        S.playTone(400, 200, 0.3, 'square', 0.3);
+        setTimeout(() => S.playTone(300, 150, 0.3, 'square', 0.3), 150);
+        setTimeout(() => S.playTone(200, 100, 0.4, 'square', 0.3), 300);
+    },
+
+    dodge: (S) => {
+        S.playTone(400, 600, 0.08, 'sine', 0.2);
+    },
+
+    hit: (S) => {
+        S.playTone(200, 80, 0.2, 'sawtooth', 0.4);
+        S.playNoise(0.1, 400, 100);
+    },
+
+    milestone: (S) => {
+        S.playTone(600, 800, 0.1, 'sine', 0.3);
+        setTimeout(() => S.playTone(800, 1000, 0.1, 'sine', 0.3), 80);
+    }
+};
+
+
+// ---- src/game.js ----
+// ==================== GAME LOGIC: BLOCK DODGE ====================
+// Replace this entire file with your own game.
+//
+// You must implement:
+//   gameInit()              - called on game start and restart
+//   gameUpdate(dt)          - called every frame (dt=1.0 at 60fps)
+//   gameRender(ctx, w, h)   - called every frame to draw your game
+//
+// Optional:
+//   gameTitleRender(ctx, w, h, time) - custom title screen art
+//   gameOverRender(ctx, w, h)       - custom game over art
+//
+// Engine API:
+//   Engine.input[id]                           - boolean, matches GAME.controls ids
+//   Engine.state.score                         - set this to update score
+//   Engine.state.health                        - set to 0 to trigger game over
+//   Engine.state.maxHealth                     - max health (for heart display)
+//   Engine.Sound.play('soundName')             - play a sound from SOUNDS
+//   Engine.spawnParticle(x,y,vx,vy,sz,col,life) - spawn a particle
+//   Engine.showScorePopup(x,y,text,color)      - floating score text
+
+// Game-specific state
+let player = {};
+let blocks = [];
+let survivalTime = 0;
+let difficulty = 1;
+let nextScoreMilestone = 50;
+
+const GROUND_Y = 190;
+const PLAYER_W = 20;
+const PLAYER_H = 24;
+const PLAYER_SPEED = 4;
+
+function gameInit() {
+    Engine.state.health = 3;
+    Engine.state.maxHealth = 3;
+    Engine.state.score = 0;
+
+    player = {
+        x: GAME.width / 2,
+        y: GROUND_Y,
+        w: PLAYER_W,
+        h: PLAYER_H,
+        invincible: 60
+    };
+
+    blocks = [];
+    survivalTime = 0;
+    difficulty = 1;
+    nextScoreMilestone = 50;
+}
+
+function gameUpdate(dt) {
+    // Move player
+    if (Engine.input.left) {
+        player.x -= PLAYER_SPEED * dt;
+    }
+    if (Engine.input.right) {
+        player.x += PLAYER_SPEED * dt;
+    }
+    // Clamp to screen
+    player.x = Math.max(player.w / 2, Math.min(GAME.width - player.w / 2, player.x));
+
+    // Invincibility countdown
+    if (player.invincible > 0) player.invincible -= dt;
+
+    // Survival scoring
+    survivalTime += dt;
+    if (Math.floor(survivalTime / 60) > Math.floor((survivalTime - dt) / 60)) {
+        Engine.state.score += 1;
+    }
+
+    // Difficulty ramp: increases every 30 seconds
+    difficulty = 1 + Math.floor(survivalTime / 1800) * 0.5 + (survivalTime % 1800) / 1800 * 0.3;
+
+    // Score milestones
+    if (Engine.state.score >= nextScoreMilestone) {
+        Sound.play('milestone');
+        Engine.showScorePopup(GAME.width / 2, GAME.height / 2 - 20, nextScoreMilestone + '!', '#ffd700');
+        nextScoreMilestone += 50;
+    }
+
+    // Spawn blocks
+    const spawnRate = Math.max(8, 40 - difficulty * 8);
+    if (Math.random() * spawnRate < dt) {
+        const bw = 12 + Math.random() * 20;
+        blocks.push({
+            x: Math.random() * (GAME.width - bw),
+            y: -20,
+            w: bw,
+            h: 12 + Math.random() * 8,
+            speed: 1.5 + Math.random() * difficulty,
+            color: randomBlockColor()
+        });
+    }
+
+    // Update blocks
+    for (let i = blocks.length - 1; i >= 0; i--) {
+        const b = blocks[i];
+        b.y += b.speed * dt;
+
+        // Off screen
+        if (b.y > GAME.height + 20) {
+            blocks.splice(i, 1);
+            continue;
+        }
+
+        // Collision with player
+        if (player.invincible <= 0 && boxOverlap(
+            player.x - player.w / 2, player.y - player.h,
+            player.w, player.h,
+            b.x, b.y, b.w, b.h
+        )) {
+            Engine.state.health--;
+            player.invincible = 90;
+            Sound.play('hit');
+
+            // Impact particles
+            for (let j = 0; j < 8; j++) {
+                Engine.spawnParticle(
+                    b.x + b.w / 2, b.y + b.h / 2,
+                    (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4,
+                    3 + Math.random() * 3, b.color, 20 + Math.random() * 15
+                );
+            }
+
+            blocks.splice(i, 1);
+        }
+    }
+}
+
+function gameRender(ctx, w, h) {
+    // Ground
+    ctx.fillStyle = '#333355';
+    ctx.fillRect(0, GROUND_Y, w, h - GROUND_Y);
+    ctx.fillStyle = '#444477';
+    ctx.fillRect(0, GROUND_Y, w, 2);
+
+    // Ground pattern
+    ctx.fillStyle = '#2a2a44';
+    for (let gx = 0; gx < w; gx += 16) {
+        ctx.fillRect(gx, GROUND_Y + 6, 8, 4);
+        ctx.fillRect(gx + 8, GROUND_Y + 14, 8, 4);
+    }
+
+    // Blocks
+    for (const b of blocks) {
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(b.x, b.y, b.w, 2);
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(b.x, b.y + b.h - 2, b.w, 2);
+    }
+
+    // Player
+    const px = player.x - player.w / 2;
+    const py = player.y - player.h;
+
+    // Blink when invincible
+    if (player.invincible > 0 && Math.floor(player.invincible / 4) % 2 === 0) {
+        return; // Skip drawing player during blink
+    }
+
+    // Body
+    ctx.fillStyle = '#4488ff';
+    ctx.fillRect(px + 2, py + 8, PLAYER_W - 4, PLAYER_H - 8);
+
+    // Head
+    ctx.fillStyle = '#ffccaa';
+    ctx.fillRect(px + 4, py, PLAYER_W - 8, 10);
+
+    // Eyes
+    ctx.fillStyle = '#222';
+    ctx.fillRect(px + 6, py + 3, 2, 3);
+    ctx.fillRect(px + 12, py + 3, 2, 3);
+
+    // Smile
+    ctx.fillStyle = '#cc6644';
+    ctx.fillRect(px + 7, py + 7, 6, 1);
+
+    // Feet
+    ctx.fillStyle = '#335599';
+    ctx.fillRect(px + 3, py + PLAYER_H - 4, 5, 4);
+    ctx.fillRect(px + PLAYER_W - 8, py + PLAYER_H - 4, 5, 4);
+}
+
+function gameTitleRender(ctx, w, h, time) {
+    // Falling blocks animation on title screen
+    const seed = Math.floor(time * 2);
+    for (let i = 0; i < 8; i++) {
+        const bx = ((i * 53 + seed * 7) % w);
+        const by = ((time * 30 + i * 40) % (h + 20)) - 20;
+        const bw = 10 + (i % 3) * 8;
+        const bh = 10 + (i % 2) * 6;
+        ctx.fillStyle = randomBlockColorFromSeed(i);
+        ctx.globalAlpha = 0.3;
+        ctx.fillRect(bx, by, bw, bh);
+    }
+    ctx.globalAlpha = 1;
+
+    // Small player character in the middle
+    const px = w / 2 - 10;
+    const py = GROUND_Y - PLAYER_H;
+    ctx.fillStyle = '#4488ff';
+    ctx.fillRect(px + 2, py + 8, PLAYER_W - 4, PLAYER_H - 8);
+    ctx.fillStyle = '#ffccaa';
+    ctx.fillRect(px + 4, py, PLAYER_W - 8, 10);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(px + 6, py + 3, 2, 3);
+    ctx.fillRect(px + 12, py + 3, 2, 3);
+
+    // Ground
+    ctx.fillStyle = '#333355';
+    ctx.fillRect(0, GROUND_Y, w, h - GROUND_Y);
+}
+
+// Helpers
+function boxOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function randomBlockColor() {
+    const colors = ['#ff4444', '#ff8844', '#ffcc44', '#44cc44', '#4488ff', '#aa44ff', '#ff44aa'];
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
+function randomBlockColorFromSeed(i) {
+    const colors = ['#ff4444', '#ff8844', '#ffcc44', '#44cc44', '#4488ff', '#aa44ff', '#ff44aa'];
+    return colors[i % colors.length];
+}
+
+    </script>
+</body>
+</html>
