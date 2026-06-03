@@ -1,0 +1,45 @@
+{
+  "enabledPlugins": {
+    "arscontexta@agenticnotetaking": true,
+    "claude-notifications-go@claude-notifications-go": true,
+    "compound-engineering@every-marketplace": true,
+    "design-and-refine@design-plugins": true,
+    "frontend-design@claude-plugins-official": true,
+    "last30days@last30days-skill": true,
+    "linear@claude-plugins-official": true,
+    "playground@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "agenticnotetaking": {
+      "source": {
+        "repo": "agenticnotetaking/arscontexta",
+        "source": "github"
+      }
+    },
+    "claude-notifications-go": {
+      "source": {
+        "repo": "777genius/claude-notifications-go",
+        "source": "github"
+      }
+    },
+    "design-plugins": {
+      "source": {
+        "repo": "0xdesign/design-plugin",
+        "source": "github"
+      }
+    },
+    "every-marketplace": {
+      "source": {
+        "repo": "EveryInc/every-marketplace",
+        "source": "github"
+      }
+    },
+    "last30days-skill": {
+      "source": {
+        "repo": "mvanhorn/last30days-skill",
+        "source": "github"
+      }
+    }
+  }
+}
